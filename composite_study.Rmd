@@ -1,0 +1,513 @@
+---
+title: "Data Modeling and Imputation for Composite AERA Study"
+author: 
+- name: "Nirmal Ghimire, Ph.D."
+  url: https://www.linkedin.com/in/nirmal-ghimire-5b96a034/
+  affiliation: K-16 Literacy Center at University of Texas at Tyler
+  affiliation_url: https://www.uttyler.edu/education/literacy-center/
+  orcid_id: 0000-0002-2032-1624
+date: "`r Sys.Date()`"
+output: 
+  distill::distill_article:
+    toc: true
+    toc_float: true
+    code_folding: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      comment = NA,
+                      warning = FALSE,
+                      message = FALSE,
+                      tidy = 'styler',
+                      error = FALSE, 
+                      highlight = TRUE, 
+                     prompt = FALSE,
+                     cache = TRUE)
+```
+
+```{r library}
+library(haven)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(janitor)
+#library(car)# For Levene's Test
+library(compute.es)# For effect sizes
+library(effects) # for adjusted means
+library(pastecs) # for descriptive statistics
+#library(multcomp) # For post hoc test
+#library(WRS2) # for robust tests
+#library(lme4) # To conduct Hierarchical Modeling
+#library(lmerTest) # To provide p-values in type I, II, or III anova summary tables for linear mixed models
+library(geomtextpath)
+library(lavaan)
+library(lavaanPlot)
+library(tidySEM)
+library(semTable)
+library(mice)
+library(ggmice)
+library(broom.mixed)
+```
+
+## A. Loading Data and Getting them Ready for Analysis
+
+### 1. School, Student Background, and Student Home ICT Data Together
+
+```{r student_school_data}
+# Loading Student and School Data
+ss_data <- read.csv("C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/SS_final_data.csv", 
+                      as.is = TRUE)
+# Changing character vectors to factors
+ss_data <- ss_data%>%
+  mutate_if(is.character, as.factor)|>
+  dplyr::select(GENDER,ETHNICITY,LANGN,COB_MOM,COB_DAD,MISCED,FISCED,COM_HOM,INTERNET,ICTHOME,SCH_LOCA,SCH_TYPE,FRPL,SCH_FRPL,SCH_ELS,SCH_DISA,EXT_CLAS,READ_SCR)
+
+# Getting rid of unnecessary variables
+
+
+#names(ss_data)
+str(ss_data)
+summary(ss_data)
+```
+
+### Checking for Assumptions of Multivariate Normality and Outliers for SEM Study
+
+#### Mardia's Test of Multivariate Normality
+
+```{r mardia_ss}
+ss_num <- dplyr::select(ss_data, SCH_ELS, SCH_FRPL, ICTHOME, READ_SCR, SCH_DISA)
+library(QuantPsyc)
+mult.norm(ss_num)$mult.test
+
+ss_num$ss_maha <- mahalanobis(ss_num, colMeans(ss_num), cov(ss_num))
+ss_num$maha_p <- pchisq(ss_num$ss_maha, df=17, lower.tail=FALSE)
+ss_high_maha <- ss_num%>%
+  filter(maha_p <= .001)%>%
+  arrange(maha_p)
+
+ss_high_maha
+
+nrow(ss_high_maha)
+```
+
+### Checking missing data pattern
+
+```{r imputing_ss_data}
+VIM::aggr(ss_data, col=c('dodgerblue','maroon'), numbers=TRUE, sortVars=TRUE, labels=names(ss_data), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+#summary(checking_missing_data, plot=FALSE)
+
+naniar::mcar_test(ss_data)
+
+# Imputing
+new_ssdata <- mice::mice(ss_data[], m = 5, maxit = 50, method = "pmm", seed = 0411, printFlag = FALSE)
+```
+
+### Plotting the imputed vs original data
+
+```{r checking_the_imputed_ssdata}
+densityplot(new_ssdata, ~COB_MOM)
+ggmice::ggmice(
+  new_ssdata, 
+  ggplot2::aes(x = SCH_FRPL, y = READ_SCR))+
+ggplot2::geom_jitter(width = 0.25)+
+  ggplot2::labs( x = "School FRPL Percentage")
+```
+
+### Pooled {lm} on New SS Data
+
+```{r testing_new_data}
+# Running lm model on Pooled data
+ss_pooled <- with(new_ssdata, lm(READ_SCR ~ SCH_ELS + FRPL + EXT_CLAS + SCH_DISA + SCH_FRPL + SCH_TYPE + SCH_LOCA + INTERNET + ICTHOME + FISCED + COB_DAD + COB_MOM + MISCED + COM_HOM + ETHNICITY + LANGN + GENDER))
+summary(pool(ss_pooled))
+```
+
+### Breaking Imputed Data in Individual Sets
+
+```{r individual_data_set}
+ss_data_1 <- complete(new_ssdata, 1)
+ss_data_2 <- complete(new_ssdata, 2)
+ss_data_3 <- complete(new_ssdata, 3)
+ss_data_4 <- complete(new_ssdata, 4)
+ss_data_5 <- complete(new_ssdata, 5)
+```
+
+### LM on Dataset 1
+
+```{r lm_ss1}
+ss_1 <- with(ss_data_1, lm(READ_SCR ~ SCH_ELS + FRPL + EXT_CLAS + SCH_DISA + SCH_FRPL + SCH_TYPE + SCH_LOCA + INTERNET + ICTHOME + FISCED + COB_DAD + COB_MOM + MISCED + COM_HOM + ETHNICITY + LANGN + GENDER))
+#summary(ss_1)
+```
+
+### LM on Dataset 2
+
+```{r lm_ss2}
+ss_2 <- with(ss_data_2, lm(READ_SCR ~ SCH_ELS + FRPL + EXT_CLAS + SCH_DISA + SCH_FRPL + SCH_TYPE + SCH_LOCA + INTERNET + ICTHOME + FISCED + COB_DAD + COB_MOM + MISCED + COM_HOM + ETHNICITY + LANGN + GENDER))
+#summary(ss_2)
+```
+
+### LM on Dataset 3
+
+```{r lm_ss3}
+ss_3 <- with(ss_data_3, lm(READ_SCR ~ SCH_ELS + FRPL + EXT_CLAS + SCH_DISA + SCH_FRPL + SCH_TYPE + SCH_LOCA + INTERNET + ICTHOME + FISCED + COB_DAD + COB_MOM + MISCED + COM_HOM + ETHNICITY + LANGN + GENDER))
+#summary(ss_3)
+```
+
+### LM on Dataset 4
+
+```{r lm_ss4}
+ss_4 <- with(ss_data_4, lm(READ_SCR ~ SCH_ELS + FRPL + EXT_CLAS + SCH_DISA + SCH_FRPL + SCH_TYPE + SCH_LOCA + INTERNET + ICTHOME + FISCED + COB_DAD + COB_MOM + MISCED + COM_HOM + ETHNICITY + LANGN + GENDER))
+#summary(ss_4)
+```
+
+### LM on Dataset 5
+
+```{r lm_ss5}
+ss_5 <- with(ss_data_5, lm(READ_SCR ~ SCH_ELS + FRPL + EXT_CLAS + SCH_DISA + SCH_FRPL + SCH_TYPE + SCH_LOCA + INTERNET + ICTHOME + FISCED + COB_DAD + COB_MOM + MISCED + COM_HOM + ETHNICITY + LANGN + GENDER))
+#summary(ss_5)
+summary(ss_data_5)
+str(ss_data_5)
+write.csv(ss_data_5, file = "s_data.csv", row.names = FALSE)
+#save(ss_data_5, file = "s_data.RData")
+```
+
+### 2. Teacher Data
+
+```{r teacher_data}
+teacher_final <- read.csv("C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/t_final.csv", 
+                      as.is = TRUE)
+    #names(teacher_final)
+# Changing class of character variables
+teacher_final <- data.frame(lapply(teacher_final, function(b) if(is.character(b)) as.factor(b) else b))
+
+# Getting rid of unnecessary column
+teacher_final <- teacher_final[,-c(1,8,12,13)]
+
+#summary(teacher_final)
+#str(teacher_final)
+
+# Teacher Education Data
+teacher_education <- read.csv("C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/teacher_education.csv", 
+                      as.is = TRUE)
+options(scipen = 999)
+# Getting rid of unnecessary column
+teach_edu <- teacher_education[,-1]
+# Changing the class of teacher_education 
+#teach_edu$teacher_education <- as.factor(teach_edu$teacher_education)
+
+
+# Getting Rid of First Four Digits from 'teacher_id' and 'school_id'
+teach_edu$school_id <- stringr::str_sub(teach_edu$CNTSCHID, -4,-1)
+teach_edu$teacher_id <- stringr::str_sub(teach_edu$CNTTCHID, -4,-1)
+
+# Getting Rid of Leading Zeros
+teach_edu$school_id <- stringr::str_remove(teach_edu$school_id, "^0+")
+teach_edu$teacher_id <- stringr::str_remove(teach_edu$teacher_id, "^0+")
+
+# Changing the class
+teach_edu <- teach_edu|>
+  dplyr::select(school_id, teacher_id, teacher_education)|>
+  mutate(school_id = as.integer(school_id),
+         teacher_id = as.integer(teacher_id),
+         highest_education = as.factor(teacher_education))
+
+#str(teach_edu)
+
+# Merging the data sets
+t_data <- merge(teach_edu, teacher_final, by = c("school_id","teacher_id"))
+t_data <- t_data|>
+  dplyr::select(school_id, teacher_id, gender, age, teacher_type, full_time, highest_education, teaching_exp, teacher_edu, initial_qual, prof_dev, reading_score)
+
+str(t_data)
+summary(t_data)
+```
+
+### Mardia Test for Teacher Data
+
+```{r mardia_teacher}
+teach_numeric <- dplyr::select(t_data, age, teaching_exp, reading_score)
+mult.norm(teach_numeric)$mult.test
+## Mahalanobis Distance
+teach_numeric$mahal <- mahalanobis(teach_numeric, colMeans(teach_numeric), cov(teach_numeric))
+teach_numeric$p <- pchisq(teach_numeric$mahal, df=3, lower.tail=FALSE)
+high_maha_teacher <- teach_numeric%>%
+  dplyr::filter(p <= .001)%>%
+  arrange(p)
+high_maha_teacher
+#rowsum(high_maha_teacher)
+```
+
+## Imputing the data in teacher_education column
+
+```{r imputing_data}
+options(scipen = 999)
+# Plotting the missing pattern
+    #plot_pattern(t_data)
+# Or
+checking_missing_data <- VIM::aggr(t_data, col=c('dodgerblue','maroon'), numbers=TRUE, sortVars=TRUE, labels=names(t_data), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+summary(checking_missing_data, plot=FALSE)
+
+naniar::mcar_test(t_data)
+
+# Imputing
+new_data <- mice::mice(t_data, m = 5, maxit = 50, method = "pmm", seed = 0410, printFlag = FALSE)
+#summary(new_data)
+```
+
+### Plotting the imputed vs original data
+
+```{r checking_the_imputed_data}
+densityplot(new_data, ~highest_education)
+ggmice::ggmice(
+  new_data, 
+  ggplot2::aes(x = teaching_exp, y = reading_score))+
+ggplot2::geom_jitter(width = 0.25)+
+  ggplot2::labs( x = "Teaching Experience")
+```
+
+### Pooled Linear Model
+
+```{r running_lm}
+pooled_lm <- with(new_data, lm(reading_score ~ gender+age+teacher_type+full_time+highest_education+teaching_exp+teacher_edu+initial_qual+prof_dev))
+## Pooled Statistics
+summary(pool(pooled_lm))
+```
+
+### Saving all the imputed data set as individual dataset
+
+```{r breaking_individual_data}
+teacher_data_1 <- complete(new_data, 1)
+teacher_data_2 <- complete(new_data, 2)
+teacher_data_3 <- complete(new_data, 3)
+teacher_data_4 <- complete(new_data, 4)
+teacher_data_5 <- complete(new_data, 5)
+```
+
+### Using Imputed 1
+
+```{r lm_1}
+lm_one <- with(teacher_data_1, lm(reading_score ~ gender+age+teacher_type+full_time+highest_education+teaching_exp+teacher_edu+initial_qual+prof_dev))
+#summary(lm_one)
+```
+
+### Using Imputed 2
+
+```{r lm_2}
+lm_two <- with(teacher_data_2, lm(reading_score ~ gender+age+teacher_type+full_time+highest_education+teaching_exp+teacher_edu+initial_qual+prof_dev))
+summary(lm_two)
+#names(teacher_data_2)
+str(teacher_data_2)
+#summary(teacher_data_2)
+#The decision is to use the second set of imputed data to run further analysis
+#write.csv(teacher_data_2, file = "t_data.csv", row.names = FALSE)
+```
+
+### Using Imputed 3
+
+```{r lm_3}
+lm_three <- with(teacher_data_3, lm(reading_score ~ gender+age+teacher_type+full_time+highest_education+teaching_exp+teacher_edu+initial_qual+prof_dev))
+#summary(lm_three)
+```
+
+### Using Imputed 4
+
+```{r lm_4}
+lm_four <- with(teacher_data_4, lm(reading_score ~ gender+age+teacher_type+full_time+highest_education+teaching_exp+teacher_edu+initial_qual+prof_dev))
+#summary(lm_four)
+```
+
+### Using Imputed 5
+
+```{r lm_5}
+lm_five <- with(teacher_data_5, lm(reading_score ~ gender+age+teacher_type+full_time+highest_education+teaching_exp+teacher_edu+initial_qual+prof_dev))
+#summary(lm_five)
+```
+
+## Average Reading Scores Based on Student and Teacher Characteristics: Categorical Variables Having More than Two Groups Only
+
+### Teacher Characteristics
+
+### Teacher Highest Education
+
+```{r, include=FALSE}
+teacher_data <- teacher_data_2|>
+  mutate(high_education = recode(highest_education,
+                                    "Associate’s degree" = 'High School; Some College; Associates Degree',
+                                    "High school and/or some college courses" = 'High School; Some College; Associates Degree'))
+### Getting Rid of highest_education variable
+  teacher_data$highest_education <- NULL
+
+### Calculating average scores
+teacher_data|>
+  dplyr::group_by(high_education)|>
+  summarise(mean_score = mean(reading_score),
+            sd_score = sd(reading_score))
+```
+
+### Teacher Education
+
+```{r, include=FALSE}
+teacher_data|>
+  dplyr::group_by(teacher_edu)|>
+  summarise(mean_score = mean(reading_score),
+            sd_score = sd(reading_score))
+```
+
+### Initial Qualification
+
+```{r}
+teacher_data <- teacher_data|>
+   mutate(init_qual = recode(initial_qual,
+                             "Other" = 'Training on Other Pedagogical Profession or Other',
+                             "Training on Another Pedagogical Profession" = 'Training on Other Pedagogical Profession or Other'))
+### Getting Rid of initial_qual variable
+  teacher_data$initial_qual <- NULL
+
+# Reading Score
+  teacher_data|>
+  dplyr::group_by(init_qual)|>
+  summarise(mean_score = mean(reading_score),
+            sd_score = sd(reading_score))
+```
+
+### Regression for Teacher
+
+```{r reg_teach}
+t_model <- lm(reading_score ~ high_education + init_qual + gender + age + teacher_type + full_time + teaching_exp + teacher_edu + prof_dev, data = teacher_data)
+summary(t_model)
+#QuantPsyc::lm.beta(t_model)
+```
+
+### Student/School Characteristics
+
+```{r}
+s_data <- ss_data_5|>
+  dplyr::mutate(student_race = recode(ETHNICITY,
+                          "Other" = "Two or More Race/Other",
+                          "Two or More Race" = "Two or More Race/Other"))
+### Getting Rid of ETHNICITY
+s_data$ETHNICITY <- NULL
+
+## Reading Scores
+s_data|>
+  dplyr::group_by(student_race)|>
+  summarise(mean_score = mean(READ_SCR),
+            sd_score = sd(READ_SCR))
+```
+
+### Mother Education(MISCED)
+
+```{r}
+s_data <- s_data|>
+  dplyr::mutate(mom_education = recode(MISCED,
+                          "ISCED 1" = "ISCED 1/None",
+                          "None" = "ISCED 1/None"))
+### Getting Rid of MISCED
+s_data$MISCED <- NULL
+
+## Reading Scores
+s_data|>
+  dplyr::group_by(mom_education)|>
+  summarise(mean_score = mean(READ_SCR),
+            sd_score = sd(READ_SCR))
+```
+
+### Father Education(FISCED)
+
+```{r}
+s_data <- s_data|>
+  dplyr::mutate(dad_education = recode(FISCED,
+                          "ISCED 1" = "ISCED 1/None",
+                          "None" = "ISCED 1/None"))
+### Getting Rid of MISCED
+s_data$FISCED <- NULL
+
+## Reading Scores
+s_data|>
+  dplyr::group_by(dad_education)|>
+  summarise(mean_score = mean(READ_SCR),
+            sd_score = sd(READ_SCR))
+```
+
+### School Location (SCH_LOCA)
+
+```{r}
+s_data <- s_data|>
+  dplyr::mutate(school_location = recode(SCH_LOCA,
+                          "rural" = "small_town/rural",
+                          "small_town" = "small_town/rural"))
+### Getting Rid of MISCED
+s_data$SCH_LOCA <- NULL
+
+## Reading Scores
+s_data|>
+  dplyr::group_by(school_location)|>
+  summarise(mean_score = mean(READ_SCR),
+            sd_score = sd(READ_SCR))
+```
+
+### Home Langauge
+
+```{r}
+## Reading Scores
+s_data|>
+  dplyr::group_by(LANGN)|>
+  summarise(mean_score = mean(READ_SCR),
+            sd_score = sd(READ_SCR))
+```
+
+### Home Internet
+
+```{r}
+## Reading Scores
+s_data|>
+  dplyr::group_by(INTERNET)|>
+  summarise(mean_score = mean(READ_SCR),
+            sd_score = sd(READ_SCR))
+```
+
+### Free or Reduced Price Lunch Status
+
+```{r}
+## Reading Scores
+s_data|>
+  dplyr::group_by(FRPL)|>
+  summarise(mean_score = mean(READ_SCR),
+            sd_score = sd(READ_SCR))
+summary(s_data)
+```
+
+### Regression SS
+#### A. Combined Model
+```{r}
+model_ss <- lm(READ_SCR ~ GENDER + student_race + LANGN + COB_MOM + COB_DAD + mom_education + dad_education + COM_HOM + INTERNET + ICTHOME + school_location + SCH_TYPE + FRPL + SCH_ELS + SCH_DISA + EXT_CLAS, data = s_data)
+summary(model_ss)
+#QuantPsyc::lm.beta(model_ss)
+```
+
+
+### B. School Model
+```{r school_model_lm}
+options(scipen = 999)
+model_school <- lm(READ_SCR ~ school_location + SCH_TYPE + FRPL + SCH_ELS + SCH_DISA + EXT_CLAS, data = s_data)
+summary(model_school)
+```
+
+
+### C. Student and ICT Model
+```{r student_ICT_Model}
+model_stu_ICT <- lm(READ_SCR ~ GENDER + student_race + LANGN + COB_MOM + COB_DAD + mom_education + dad_education + COM_HOM + INTERNET + ICTHOME, data = s_data)
+summary(model_stu_ICT)
+```
+
+### D. ICT Model
+```{r ICT_only_model}
+ict_only_model <- lm(READ_SCR ~ COM_HOM + INTERNET + ICTHOME, data = s_data)
+summary(ict_only_model)
+```
+
+### D. Student Only Model
+```{r student_only_model}
+student_only_model <- lm(READ_SCR ~ GENDER + student_race + LANGN + COB_MOM + COB_DAD + mom_education + dad_education, data = s_data)
+summary(student_only_model)
+```

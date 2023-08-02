@@ -1,0 +1,1463 @@
+---
+title: "Exploring the Impact of school Characteristics on fifteen-year-olds’ Reading, Math, and Science Scores"
+author: 
+- name: "Nirmal Ghimire, Ph.D."
+  url: https://www.linkedin.com/in/nirmal-ghimire-5b96a034/
+  affiliation: K-16 Literacy Center at University of Texas at Tyler
+  affiliation_url: https://www.uttyler.edu/education/literacy-center/
+  orcid_id: 0000-0002-2032-1624
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      comment = NA,
+                      warning = FALSE,
+                      message = FALSE,
+                      tidy = 'styler',
+                      error = FALSE, 
+                      highlight = TRUE, 
+                     prompt = FALSE)
+```
+
+Research Questions:
+
+1.	What is the impact of student level factors such as *ethnicity*, *gender*, *home language*, *parents’ education*, and *country of birth* on academic performance in *reading, math, and science*?
+2.	What is the impact of school-level factors such as *school location* and *type* on students’ academic achievement?
+3.	How does the influence of student level factors, such as ethnicity, gender, home language, parents’ education, and country of birth, vary across academic performance in reading, math, and science?
+
+```{r loading_packages}
+### Loading Required Packages
+library(tidyverse)
+library(haven)
+library(EdSurvey)
+library(Dire)
+library(WeMix)
+library(ggplot2)
+```
+
+
+```{r reading_PISA_data}
+### Reading PISA 2018 Data and Subsetting the US Data
+eds_pisa <- EdSurvey::readPISA(path = "C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/PISA/2018", 
+                               database = "INT", countries = "usa", cognitive = "score")
+#dim(eds_pisa)
+```
+
+## The Dataset: List of variables of interest in the raw form
+```{r reading_col_names}
+hd <- head(colnames(eds_pisa),10)
+ht <- tail(colnames(eds_pisa),10)
+#cbind(hd,ht)
+#names(eds_pisa)
+# colnames(eds_pisa)
+codebook <- showCodebook(eds_pisa)
+#View(codebook)
+```
+
+(https://www.oecd-ilibrary.org/sites/84a683c1-en/index.html?itemId=/content/component/84a683c1-en)
+
+a. **cntschid**: Intl. School ID
+b. **cntstuid**: Intl. Student ID
+c. **st004d01t**: [*gender*]: Label: Student (Standardized) Gender
+Levels (Lowest level first):
+     - 1. FEMALE
+     - 2. MALE
+     - 5. VALID SKIP
+     - 7. NOT APPLICABLE
+     - 8. INVALID
+     - 9. NO RESPONSE
+     
+d. **privatesch**: [*school_type*]: Label: School type derived from sampling information; 
+      - public
+      - private
+      
+e. **schltype**: Label: School Ownership
+Levels (Lowest level first):
+     - 1. PRIVATE INDEPENDENT
+     - 2. PRIVATE GOVERNMENT-DEPENDENT
+     - 3. PUBLIC
+     - 5. VALID SKIP
+     - 7. NOT APPLICABLE
+     - 8. INVALID
+     - 9. NO RESPONSE
+     
+f. **sc001q01ta**: [*school_location*]: Label: Which of the following definitions best describes the community in which your school is located?
+Levels (Lowest level first):
+     - 1. A VILLAGE, HAMLET OR RURAL AREA (FEWER THAN 3 000 PEOPLE)
+     - 2. A SMALL TOWN (3 000 TO ABOUT 15 000 PEOPLE)
+     - 3. A TOWN (15 000 TO ABOUT 100 000 PEOPLE)
+     - 4. A CITY (100 000 TO ABOUT 1 000 000 PEOPLE)
+     - 5. A LARGE CITY (WITH OVER 1 000 000 PEOPLE)
+     - 95. VALID SKIP
+     - 97. NOT APPLICABLE
+     - 98. INVALID
+     - 99. NO RESPONSE
+     
+g. **immig**: [*immigration_status*]: Label: Index of Immigration status
+Levels (Lowest level first):
+     - 1. NATIVE: those students with at least one parent who was born in the country
+     - 2. SECOND-GENERATION: those students with at least one parent who was born in the country
+     - 3. FIRST-GENERATION: those students born outside the country of assessment and whose parents were also born outside the country of assessment.
+     - 5. VALID SKIP
+     - 7. NOT APPLICABLE
+     - 8. INVALID
+     - 9. NO RESPONSE
+     
+h. **hisei**: [*parent_ocp_yrs*]: Label: Index of highest parental occupational status
+Levels (Lowest level first):
+     - 995: VALID SKIP
+     - 997: NOT APPLICABLE
+     - 998: INVALID
+     - 999: NO RESPONSE
+     
+i. **pared**: [*parent_edu_yrs*]: Index of highest parental education in years of schooling
+
+The index of highest education level of parents was also recoded into estimated number of years of schooling (PARED). In PISA 2018, to avoid issues related to the misreporting of parental education by students, students’ answers about post-secondary qualifications were considered only for those students who reported their parents’ highest level of schooling to be at least lower secondary education. The conversion from ISCED levels to year of education is common to all countries. This international conversion was determined by using the modal years of education across countries for each ISCED level. 
+Levels (Lowest level first):
+     - 9995: VALID SKIP
+     - 9997: NOT APPLICABLE
+     - 9998: INVALID
+     - 9999: NO RESPONSE
+
+The index of highest education level of parents was also recoded into estimated number of years of schooling (PARED).
+     
+j. **hisced**: [*parent_edu_lvl*]: Label: Highest Education of parents (ISCED): The index of highest education level of parents (HISCED) corresponded to the higher ISCED level of either parent.
+
+Levels (Lowest level first):
+
+     0. NONE
+     1. ISCED 1: primary education
+     2. ISCED 2: lower secondary
+     3. ISCED 3B, C: vocational/pre-vocational upper secondary
+     4. ISCED 3A, ISCED 4: 3A: General Upper Secondary; 4: non-tertiary post-secondary
+     5. ISCED 5B: vocational tertiary
+     6. ISCED 5A, 6: theoretically oriented tertiary and post-graduate
+     95. VALID SKIP
+     97. NOT APPLICABLE
+     98. INVALID
+     99. NO RESPONSE
+     
+The PISA index of economic, social and cultural status (ESCS) was derived, as in previous cycles, from three variables related to family background: parents’ highest level of education (PARED), parents’ highest occupational status (HISEI), and home possessions (HOMEPOS), including books in the home.
+
+Occupational data for both the student’s father and the student’s mother were obtained from responses to open-ended questions. The responses were coded to four-digit ISCO codes (ILO, 2007) and then mapped to the international socio-economic index of occupational status (ISEI) (Ganzeboom and Treiman, 2003[1]). In PISA 2018, as in PISA 2015, the new ISCO and ISEI in their 2008 version were used rather than the 1988 versions that had been applied in the previous four cycles (Ganzeboom, 2010[2]). Three indices were calculated based on this information: father’s occupational status (BFMJ2); mother’s occupational status (BMMJ1); and the highest occupational status of parents (HISEI), which corresponds to the higher ISEI score of either parent or to the only available parent’s ISEI score. For all three indices, higher ISEI scores indicate higher levels of occupational status. In PISA 2018, in order to reduce missing values, an ISEI value of 17 (equivalent to the ISEI value for ISCO code 9000, corresponding to the major group “Elementary Occupations”) was attributed to pseudo-ISCO codes 9701, 9702 and 9703 (“Doing housework, bringing up children”, “Learning, studying”, “Retired, pensioner, on unemployment benefits”).
+
+k. **fisced**: [*dad_edu_lvl*]: Label: Father’s Education (ISCED)
+
+Levels (Lowest level first): Same as above
+
+In PISA 2018, to avoid issues related to the misreporting of parental education by students, students’ answers about post-secondary qualifications were considered only for those students who reported their parents’ highest level of schooling to be at least lower secondary education. The conversion from ISCED levels to year of education is common to all countries. Indices with these categories were provided for a student’s father (FISCED)
+
+l. **misced**: [*mom_edu_lvl*]: Label: Mother’s Education (ISCED)
+Levels (Lowest level first): Same as above
+
+Indices with these categories were provided for a student’s mother (MISCED)
+
+m. **langn**: [*home_language*]: Language at home
+    - SPANISH
+    - ENGLISH
+    - ANOTHER LANGUAGE (USA)
+    
+n. **cobn_m**: [*mom_cob*]: Country of Birth National Categories- Mother; 
+    - UNITED STATES OF AMERICA 
+    - ANOTHER COUNTRY (USA)
+    
+o. **cobn_f**: [*dad_cob*]: Country of Birth National Categories- Father; 
+    - UNITED STATES OF AMERICA 
+    - ANOTHER COUNTRY (USA)
+    
+p. **cobn_s**: [*student_cob*]: Country of Birth National Categories- Student; 
+    - UNITED STATES OF AMERICA; 
+    - ANOTHER COUNTRY (USA)
+    
+q. **ocod1**: ISCO-08 Occupation code - Mother 
+    - ARMED FORCES etc.
+    
+r. **ocod2**: ISCO-08 Occupation code - Father 
+    - ARMED FORCES etc.
+    
+s. **pa042q01ta**: Not publicly available: Label: What is your annual household income?
+Levels (Lowest level first):
+    - LESS THAN  $A 
+    - $A  OR MORE BUT LESS THAN  $B 
+    - $B  OR MORE BUT LESS THAN  $C 
+    - $C  OR MORE BUT LESS THAN  $D 
+    - $D  OR MORE BUT LESS THAN  $E 
+    - $E  OR MORE 
+    - 95. VALID SKIP 
+    - 97. NOT APPLICABLE
+    - 98. INVALID 
+    - 99. NO RESPONSE
+    
+t. **w_fstuwt**: Jackknife replicate weight variables associated with the full sample weight w_fstuwt
+
+
+```{r subset data}
+### Subset Data 
+# showWeights(eds_pisa, verbose = TRUE)
+my_data <- EdSurvey::getData(eds_pisa, varnames = c("cntschid", "cntstuid","st004d01t","privatesch","schltype","immig","hisei","pared",
+                                                 "hisced","fisced","misced", "langn","cobn_m","cobn_f","cobn_s","sc001q01ta",
+                                                "ocod1", "ocod2", "pa042q01ta", "read","scie", "math", "w_fstuwt"),addAttributes = TRUE, omittedLevels = FALSE)
+#dim(my_data)
+```
+
+
+```{r showing_plausible_values}
+### Plausible Values of the New Dataset
+#showPlausibleValues(my_data)
+#showWeights(my_data, verbose = TRUE)
+```
+
+### Checking the US Average Reading, Science, and Math Scores
+```{r checking_scores}
+reading_1 <- summary2(my_data, "read", weightVar = NULL)
+reading_2 <- summary2(my_data, "read", weightVar = "w_fstuwt")
+science_1 <- summary2(my_data, "scie", weightVar = NULL)
+science_2 <- summary2(my_data, "scie", weightVar = "w_fstuwt")
+math_1 <- summary2(my_data, "math", weightVar = NULL)
+math_2 <- summary2(my_data, "math", weightVar = "w_fstuwt")
+reading_2
+science_2
+math_2
+```
+
+
+### a. Achievement Levels by Subjects Reading
+```{r ach_by_subject}
+achievement_reading <- achievementLevels(achievementVars = c("read"),
+                                         data = my_data,
+                                         returnCumulative = TRUE)
+achievement_reading$discrete[,-5]
+```
+
+
+### b. Achievement Levels by Subjects Math
+```{r ach_by_subject_math}
+achievement_math <- achievementLevels(achievementVars = c("math"),
+                                         data = my_data,
+                                         returnCumulative = TRUE)
+achievement_math$discrete[,-5]
+```
+
+### c. Achievement Levels by Subjects Science
+```{r ach_by_subject_science}
+achievement_science <- achievementLevels(achievementVars = c("scie"),
+                                         data = my_data,
+                                         returnCumulative = TRUE)
+achievement_science$discrete[,-5]
+```
+
+### Achievement Levels by Subject
+```{r achievement_levels}
+showCutPoints(data = my_data)
+```
+
+
+```{r variable_information}
+### Summary of the Variables in the Dataset
+#my_data$privatesch <- as.factor(my_data$privatesch)
+#my_data$pa042q01ta <- as.factor(my_data$pa042q01ta)
+
+#searchSDF("st004d01t", my_data, levels = TRUE)
+#searchSDF("privatesch", my_data, levels = TRUE)
+#searchSDF("schltype", my_data, levels = TRUE)
+#searchSDF("sc001q01ta", my_data, levels = TRUE)
+#searchSDF("immig", my_data, levels = TRUE)
+#searchSDF("hisei", my_data, levels = TRUE)
+#searchSDF("pared", my_data, levels = TRUE)
+#searchSDF("hisced", my_data, levels = TRUE)
+#searchSDF("fisced", my_data, levels = TRUE)
+#searchSDF("misced", my_data, levels = TRUE)
+#searchSDF("langn", my_data, levels = TRUE)
+#searchSDF("cobn_m", my_data, levels = TRUE)
+#searchSDF("cobn_f", my_data, levels = TRUE)
+#searchSDF("cobn_s", my_data, levels = TRUE)
+#searchSDF("ocod1", my_data, levels = TRUE)
+#searchSDF("ocod2", my_data, levels = TRUE)
+#searchSDF("pa042q01ta", my_data, levels = TRUE)
+```
+
+
+```{r change_names}
+### Changing Some Variable Names 
+my_data <- rename.sdf(my_data, "st004d01t", "gender")
+my_data <- rename.sdf(my_data, "privatesch", "school_type")
+my_data <- rename.sdf(my_data, "immig", "immigration_status")
+my_data <- rename.sdf(my_data, "hisei", "parent_ocp_yrs")
+my_data <- rename.sdf(my_data, "pared", "parent_edu_yrs")
+my_data <- rename.sdf(my_data, "hisced", "parent_edu_lvl")
+my_data <- rename.sdf(my_data, "fisced", "dad_edu_lvl")
+my_data <- rename.sdf(my_data, "misced", "mom_edu_lvl")
+my_data <- rename.sdf(my_data, "pa042q01ta", "annual_income")
+my_data <- rename.sdf(my_data, "langn", "home_language")
+my_data <- rename.sdf(my_data, "cobn_m", "mom_cob")
+my_data <- rename.sdf(my_data, "cobn_f", "dad_cob")
+my_data <- rename.sdf(my_data, "cobn_s", "student_cob")
+my_data <- rename.sdf(my_data, "sc001q01ta", "school_location")
+```
+
+### Variable Summary
+```{r summary}
+mod_data <- EdSurvey::getData(my_data, varnames = c("cntschid", "cntstuid","gender","school_type", "school_location", "immigration_status", "parent_ocp_yrs", "parent_edu_yrs", "parent_edu_lvl", "dad_edu_lvl", "mom_edu_lvl", "home_language","mom_cob","dad_cob","student_cob","read","scie", "math", "w_fstuwt"),addAttributes = TRUE, omittedLevels = FALSE)
+mod_data$cntschid <- as.factor(mod_data$cntschid)
+mod_data$cntstuid <- as.factor(mod_data$cntstuid)
+mod_data$school_type <- as.factor(mod_data$school_type)
+#str(mod_data[,1:18])
+summary(mod_data[,1:18])
+#showWeights(mod_data, verbose = TRUE)
+#showCutPoints(data = mod_data)
+
+# Save mod_data as a CSV file
+#write.csv(mod_data, file = "mod_data.csv", row.names = FALSE)
+```
+
+
+```{r two_level_hlm}
+# Set APA theme
+apa_theme <- function(base_size = 12) {
+  theme_bw() +
+    theme(
+      text = element_text(size = base_size),
+      axis.title = element_text(face = "bold"),
+      axis.text = element_text(face = "plain"),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      legend.title = element_blank()
+    )
+}
+
+# Set the filename for saving the plot
+filename <- "density_plot.jpg"
+
+# Create the plot
+plot <- ggplot() +
+  geom_density(data = mod_data, aes(x = pv1math, fill = "Math"), color = "black", alpha = 0.5) +
+  geom_density(data = mod_data, aes(x = pv1scie, fill = "Science"), color = "black", alpha = 0.5) +
+  geom_density(data = mod_data, aes(x = pv1read, fill = "Reading"), color = "black", alpha = 0.5) +
+  geom_vline(xintercept = 478, linetype = "dashed", color = "blue") +
+  geom_vline(xintercept = 502, linetype = "dashed", color = "green") +
+  geom_vline(xintercept = 505, linetype = "dashed", color = "red") +
+  labs(x = "Test Scores", y = "") +
+  scale_x_continuous(breaks = seq(0, 100, by = 10)) +
+  scale_y_continuous(breaks = seq(0, 0.005, by = 0.001), limits = c(0, 0.005)) +
+  scale_fill_manual(values = c("Math" = "lightblue", "Science" = "lightgreen", "Reading" = "lightpink"),
+                    labels = c("Math", "Science", "Reading")) +
+  annotate("text", x = 478, y = 0.004, label = "Math (National Average: 478)", color = "blue", size = 3, hjust = -0.5) +
+  annotate("text", x = 502, y = 0.003, label = "Science (National Average: 502)", color = "green", size = 3, hjust = -0.5) +
+  annotate("text", x = 505, y = 0.002, label = "Reading (National Average: 505)", color = "red", size = 3, hjust = -0.5) +
+  apa_theme()
+
+# Save the plot as a .jpg file
+ggsave(filename, plot, width = 6, height = 4)
+
+# Display the plot
+plot
+```
+
+## Correlation among math, science, and readign scores and thier interpretation
+```{r correlation}
+math_science_cor <- cor.sdf(x = "math", y = "scie", data = mod_data, 
+                       method = "Pearson", weightVar = "w_fstuwt")
+math_science_cor 
+math_readin_cor <- cor.sdf(x = "math", y = "read", data = mod_data, 
+                       method = "Pearson", weightVar = "w_fstuwt")
+math_readin_cor
+read_science_cor <- cor.sdf(x = "scie", y = "read", data = mod_data, 
+                       method = "Pearson", weightVar = "w_fstuwt")
+read_science_cor
+```
+
+Findings and interpretations:
+Math - Science Correlation:
+The correlation analysis revealed a strong positive relationship between math and science scores (r = 0.85, p < 0.001, 95% CI [0.84, 0.86]). This indicates that students who performed well in math also tended to perform well in science. The findings highlight the interconnectedness of these subjects, suggesting that proficiency in one domain may positively influence achievement in the other.
+
+Math - Reading Correlation:
+The correlation analysis demonstrated a strong positive association between math and reading scores (r = 0.84, p < 0.001, 95% CI [0.83, 0.86]). This suggests that students who excelled in math also exhibited higher performance in reading. These results emphasize the potential transferable skills and cognitive abilities that contribute to success across different academic domains.
+
+Science - Reading Correlation:
+The correlation analysis indicated a strong positive correlation between science and reading scores (r = 0.88, p < 0.001, 95% CI [0.87, 0.89]). This implies that students who achieved higher scores in science also demonstrated elevated performance in reading. These findings underscore the interconnected nature of scientific and linguistic abilities, indicating that proficiency in one area may be associated with proficiency in the other.
+
+## Importing Students' Ethnicity Variable
+```{r importing_ethnicity}
+# Load the SS_final_data.csv file
+ss_data <- read.csv("SS_final_data.csv")
+m_data <- read.csv("mod_data.csv")
+# Subset the variables of interest
+subset_data <- ss_data[, c("CNTSCHID", "CNTSTUID", "ETHNICITY")]
+subset_data <- rebindAttributes(subset_data, eds_pisa)
+#summary(m_data)
+
+# Convert variable names to lowercase
+colnames(subset_data) <- tolower(colnames(subset_data))
+
+# Change the class of variables to factors
+subset_data$cntschid <- as.factor(subset_data$cntschid)
+subset_data$cntstuid <- as.factor(subset_data$cntstuid)
+subset_data$ethnicity <- as.factor(subset_data$ethnicity)
+#summary(subset_data)
+
+# Merge with mod_data by cntschid and cntstuid
+merged_data <- merge(m_data, subset_data, by = c("cntschid", "cntstuid"))
+
+
+# Specify the variable names you want to convert to factors
+variables_to_convert <- c("cntschid","cntstuid","gender","school_type", "immigration_status", "ethnicity", "school_location", "parent_edu_lvl", "dad_edu_lvl","mom_edu_lvl","home_language","mom_cob","dad_cob","student_cob")
+
+# Use mutate_if to convert the selected variables to factors
+merged_data <- merged_data %>%
+  mutate_if(names(.) %in% variables_to_convert, as.factor)
+merged_data <- rebindAttributes(merged_data, mod_data)
+
+# View the merged data
+#names(merged_data)
+#summary(merged_data[ ,c(3:17,127)])
+
+# Achievement Level
+#aLev1 <- achievementLevels(achievementVars = c("math", "ethnicity"), aggregateBy = "ethnicity",
+                  #data = merged_data, returnCumulative = TRUE)
+#aLev1$discrete
+```
+
+## Preparing Data for Further Analysis
+```{r preparing_data}
+# Recode values in school_location variable
+merged_data <- merged_data %>%
+  mutate(school_location = case_when(
+    school_location %in% c("A VILLAGE, HAMLET OR RURAL AREA (FEWER THAN 3 000 PEOPLE)",
+                           "A SMALL TOWN (3 000 TO ABOUT 15 000 PEOPLE)",
+                           "A TOWN (15 000 TO ABOUT 100 000 PEOPLE)") ~ "A VILLAGE, A (SMALL) TOWN (FEWER THAN 100 000 PEOPLE)",
+    TRUE ~ school_location
+  )) %>%
+  mutate(school_location = factor(school_location))
+#summary(merged_data$school_location)
+
+# Recode values in parent_edu_lvl  variable
+merged_data <- merged_data %>%
+  mutate(parent_edu_lvl = case_when(
+    parent_edu_lvl %in% c("NONE",
+                           "ISCED 1",
+                           "ISCED 2") ~ "Below High School",
+    TRUE ~ parent_edu_lvl
+  )) %>%
+  mutate(parent_edu_lvl = factor(parent_edu_lvl))
+#summary(merged_data$parent_edu_lvl)
+
+# Recode values in dad_edu_lvl  variable
+merged_data <- merged_data %>%
+  mutate(dad_edu_lvl = case_when(
+    dad_edu_lvl %in% c("NONE",
+                           "ISCED 1",
+                           "ISCED 2") ~ "Below High School",
+    TRUE ~ dad_edu_lvl
+  )) %>%
+  mutate(dad_edu_lvl = factor(dad_edu_lvl))
+#summary(merged_data$dad_edu_lvl)
+
+# Recode values in dad_edu_lvl  variable
+merged_data <- merged_data %>%
+  mutate(mom_edu_lvl = case_when(
+    mom_edu_lvl %in% c("NONE",
+                           "ISCED 1",
+                           "ISCED 2") ~ "Below High School",
+    TRUE ~ mom_edu_lvl
+  )) %>%
+  mutate(mom_edu_lvl = factor(mom_edu_lvl))
+#summary(merged_data$mom_edu_lvl)
+
+# Recode values in dad_edu_lvl  variable
+merged_data <- merged_data %>%
+  mutate(ethnicity = case_when(
+    ethnicity %in% c("Other",
+                      "Two or More Race") ~ "Other/Two or More Race",
+    TRUE ~ ethnicity
+  )) %>%
+  mutate(ethnicity = factor(ethnicity))
+#summary(merged_data$ethnicity)
+
+merged_data <- rebindAttributes(merged_data, mod_data)
+#attributes(merged_data)$class
+summary(merged_data[ ,c(3:17,127)])
+#reading_3 <- summary2(merged_data, "read", weightVar = "w_fstuwt")
+#reading_3
+#str(merged_data)
+```
+
+## Multivariate Analysis
+### a. Reading
+```{r multivariate_study_reading}
+options(scipen = 999)
+lm_read <- lm.sdf(formula = read ~ gender + ethnicity + school_type + school_location + immigration_status + parent_ocp_yrs + dad_edu_lvl + mom_edu_lvl + home_language + mom_cob + dad_cob + student_cob, data = merged_data, relevels = c(gender = "FEMALE",
+                          school_type = "public",
+                          ethnicity = "White, not Hispanic",
+                          school_location = "A VILLAGE, A (SMALL) TOWN (FEWER THAN 100 000 PEOPLE)",
+                          immigration_status = "NATIVE",
+                          dad_edu_lvl = "Below High School",
+                          mom_edu_lvl = "Below High School",
+                          home_language = "ENGLISH",
+                          mom_cob = "ANOTHER COUNTRY (USA)",
+                          dad_cob = "ANOTHER COUNTRY (USA)",
+                          student_cob = "ANOTHER COUNTRY (USA)"))
+summary(lm_read, src=TRUE)
+```
+
+A multiple linear regression analysis was conducted to examine the relationship between reading scores (read) and a set of predictor variables, including gender, ethnicity, school type, school location, immigration status, parent's occupation years, dad's education level, mom's education level, home language, mom's country of birth, dad's country of birth, and student's country of birth. Weighted data, variance method, jackknife replicates, plausible values, and jrrIMax were utilized to ensure statistical reliability.
+
+The results revealed several statistically significant associations between the predictor variables and reading scores, while controlling for other variables. Specifically, the findings indicated the following:
+
+Gender significantly influenced reading scores, with male students exhibiting lower reading scores compared to their female counterparts (b = -22.531, p < 0.001). This implies a gender disparity in reading achievement, suggesting that additional factors or educational interventions might be necessary to address this discrepancy.
+
+Regarding ethnicity, Asian students displayed slightly higher reading scores compared to other ethnic groups, although the effect was marginally non-significant (b = 15.571, p = 0.091). Further investigation might be warranted to explore the potential cultural or socio-economic factors contributing to this trend.
+
+School type, as measured by private versus public schools, did not yield a significant difference in reading scores (b = 2.521, p = 0.816). This suggests that the type of school attended may not have a substantial impact on students' reading achievement in the given sample.
+
+In terms of school location, attending a school situated in a city with a population ranging from 100,000 to 1,000,000 was associated with slightly higher reading scores (b = 13.754, p = 0.025). This finding suggests that urban school settings might provide certain advantages or resources that positively influence students' reading performance.
+
+Immigration status, specifically being a first-generation student, did not exhibit a statistically significant effect on reading scores (b = -10.393, p = 0.617). This implies that the educational experiences and challenges faced by first-generation students may not significantly impact their reading achievement in this context.
+
+Parent's occupation years demonstrated a significant positive association with reading scores (b = 0.891, p < 0.001). This suggests that longer durations of parental occupation might provide a more favorable socio-economic environment, which can contribute to improved reading skills among students.
+
+Dad's education level exhibited a significant effect on reading scores. Specifically, students whose fathers had an ISCED 3A, ISCED 4 education level showed higher reading scores (b = 12.139, p = 0.039). This finding highlights the importance of paternal education in fostering reading abilities and suggests that educational initiatives targeting fathers may yield positive outcomes.
+
+Similarly, mom's education level significantly influenced reading scores. Students with mothers holding an ISCED 3A, ISCED 4 education level displayed higher reading scores (b = 23.736, p = 0.000). This underscores the critical role of maternal education in supporting children's reading development, emphasizing the need for policies and programs aimed at enhancing maternal educational opportunities.
+
+Home language emerged as a significant factor, with students whose home language was another language (besides English) exhibiting lower reading scores (b = -24.637, p = 0.017). This finding suggests that language-related factors, such as limited English proficiency or bilingualism, might pose challenges to reading achievement and warrant targeted interventions for these students.
+
+Regarding country of birth, no significant effect on reading scores was observed for students born in the United States, either for the mother (b = -15.719, p = 0.111) or the father (b = -5.199, p = 0.563). These results indicate that the country of birth of the student's parents does not appear to have a substantial impact on reading achievement in this sample.
+
+Lastly, the student's own country of birth did not demonstrate a significant association with reading scores (b = 9.889, p = 0.583). This suggests that students' reading achievement is not strongly influenced by their own country of birth, indicating a potentially inclusive educational environment for diverse student populations.
+
+Overall, the multiple regression model accounted for 17.03% of the variance in reading scores (R-squared = 0.1703). The statistically significant predictors included gender, parent's occupation years, dad's education level, mom's education level, home language, and school location.
+
+These findings provide valuable insights into the factors associated with reading achievement among students. The results suggest the need for targeted interventions and policies to address gender disparities in reading scores and emphasize the importance of parental education, particularly for fathers and mothers. Additionally, attention should be given to students with a home language other than English, as well as those attending schools located in urban areas. These findings contribute to the existing literature on educational disparities and highlight areas for further research and interventions aimed at improving reading outcomes for all students.
+
+### b. Math
+```{r multivariate_study_math}
+lm_math <- lm.sdf(formula = math ~ gender + ethnicity + school_type + school_location + immigration_status + parent_ocp_yrs + parent_edu_yrs + dad_edu_lvl + mom_edu_lvl + home_language + mom_cob + dad_cob + student_cob, data = merged_data, relevels = c(gender = "FEMALE",
+                          school_type = "public",
+                          ethnicity = "White, not Hispanic",
+                          school_location = "A VILLAGE, A (SMALL) TOWN (FEWER THAN 100 000 PEOPLE)",
+                          immigration_status = "NATIVE",
+                          dad_edu_lvl = "Below High School",
+                          mom_edu_lvl = "Below High School",
+                          home_language = "ENGLISH",
+                          mom_cob = "ANOTHER COUNTRY (USA)",
+                          dad_cob = "ANOTHER COUNTRY (USA)",
+                          student_cob = "ANOTHER COUNTRY (USA)"))
+summary(lm_math, src=TRUE)$coefmat
+```
+
+The overall model was statistically significant (F = 32.88, p < 0.001), indicating that the included variables collectively explained a significant portion of the variance in math scores. The model accounted for approximately 23.12% of the variance in math scores, suggesting a moderate level of predictive power.
+
+Among the individual predictors, several variables showed significant associations with math scores. Gender had a small but significant effect, with male students having slightly higher math scores compared to female students (b = 8.544877, p = 0.0107175). This finding suggests a gender difference in math achievement, with males tending to perform slightly better in this subject.
+
+Ethnicity was also found to be a significant predictor of math scores. Asian students had higher math scores compared to other ethnic groups (b = 21.676271, p = 0.0076869), while Black or African American students had lower math scores (b = -72.882675, p < 0.00000000000000022). Similarly, Hispanic or Latino students (b = -34.001352, p = 0.00000000036979566) and students of other or multiple races (b = -23.361021, p = 0.00006272144817829) had lower math scores compared to their counterparts. These findings highlight the presence of ethnic disparities in math achievement, with certain groups performing better or worse than the reference group.
+
+School-related variables also demonstrated associations with math scores. Students attending private schools showed a non-significant negative trend (b = -4.842690, p = 0.5119406), indicating slightly lower math scores compared to students in public schools. Regarding school location, students in larger cities (b = 8.163280, p = 0.1292725) and cities with populations between 100,000 and 1,000,000 (b = 9.126625, p = 0.1196395) had slightly higher math scores compared to students in other locations. These findings suggest that school characteristics and location may have a modest influence on math achievement.
+
+Immigration status was also found to be a significant predictor of math scores. First-generation immigrant students had slightly lower math scores compared to non-immigrant students (b = -6.370139, p = 0.7123759), while second-generation immigrant students had slightly higher math scores (b = 7.783367, p = 0.4499458). These results indicate that immigrant background may have a small impact on math achievement, with second-generation students potentially benefiting from their exposure to the educational system in their host country.
+
+Parental factors, including parent's occupation years and education levels, were also significant predictors of math scores. The number of years a parent had spent in their occupation was positively associated with math scores (b = 0.730406, p < 0.00000000000001599), suggesting a potential link between parental work experience and the development of math skills in their children. Regarding education levels, both the father's and mother's higher education levels (ISCED 3A, ISCED 4 and ISCED 5A, 6) were associated with higher math scores (b = 10.694988, p = 0.0397532 and b = 25.115732, p = 0.0001328, respectively). These findings emphasize the positive influence of parental education and professional background on math achievement.
+
+Home language and country of birth for both parents and students were additional variables that showed significant associations with math scores. Students whose home language was neither English nor Spanish had lower math scores (b = -20.645186, p = 0.0190870) compared to those whose home language was English. Moreover, students with parents born outside the United States (b = -16.395429, p = 0.0365694 for mother's country of birth; b = -8.758461, p = 0.2120954 for father's country of birth) and students themselves born outside the United States (b = 12.646052, p = 0.3673322) had varying effects on math scores. These findings suggest that linguistic and cultural factors may play a role in math achievement, with students from certain language backgrounds or foreign-born students potentially facing additional challenges.
+
+In conclusion, this study explored the influences of various factors on math scores among students. The findings revealed significant associations between math scores and gender, ethnicity, school-related variables, immigration status, parental factors, and linguistic/cultural factors.
+
+### c. Science
+```{r multivariate_study_science}
+lm_science <- lm.sdf(formula = scie ~ gender + ethnicity + school_type + school_location + immigration_status + parent_ocp_yrs + dad_edu_lvl + mom_edu_lvl + home_language + mom_cob + dad_cob + student_cob, data = merged_data, relevels = c(gender = "FEMALE",
+                          school_type = "public",
+                          ethnicity = "White, not Hispanic",
+                          school_location = "A VILLAGE, A (SMALL) TOWN (FEWER THAN 100 000 PEOPLE)",
+                          immigration_status = "NATIVE",
+                          dad_edu_lvl = "Below High School",
+                          mom_edu_lvl = "Below High School",
+                          home_language = "ENGLISH",
+                          mom_cob = "ANOTHER COUNTRY (USA)",
+                          dad_cob = "ANOTHER COUNTRY (USA)",
+                          student_cob = "ANOTHER COUNTRY (USA)"))
+summary(lm_science, src=TRUE)$coefmat
+```
+
+The overall multiple R-squared value of 0.192 indicates that the combination of independent variables in the model explains approximately 19.2% of the variance in science scores.
+
+Among the independent variables, several showed significant associations with science performance. It is important to note that some variables had positive coefficients, indicating a positive influence on science scores, while others had negative coefficients, indicating a negative influence.
+
+Significant findings include:
+
+Ethnicity: Asian students had significantly higher science scores compared to other ethnic groups. Black or African American and Hispanic or Latino students had significantly lower scores, suggesting the presence of achievement gaps that need attention.
+
+Parental education and occupation: Students whose parents had higher educational attainment (ISCED 3A, ISCED 4; ISCED 5A, 6) achieved better science scores. Similarly, students with parents in higher occupational categories demonstrated higher performance. This highlights the importance of parental influence and the potential role of socio-economic factors in students' science achievement.
+
+School type and location: The type and location of the school were not significant predictors of science performance, indicating that these factors may not have a substantial influence on students' scores.
+
+Immigration status: Second-generation students had significantly higher science scores compared to first-generation students. This suggests that factors related to cultural adaptation and familiarity with the education system may impact science performance.
+
+Home language and country of birth: Students whose home language was another language in the USA or Spanish had lower science scores. Additionally, students born in the United States of America displayed slightly lower science performance. These findings highlight the potential impact of language barriers and socio-cultural dynamics on science achievement.
+
+## Composite Mutivariate Analysis
+```{r multvar}
+lm_multvar <- mvrlm.sdf(read|math|scie ~ gender + ethnicity + school_type + school_location + immigration_status + parent_ocp_yrs + dad_edu_lvl + mom_edu_lvl + home_language + mom_cob + dad_cob + student_cob, data = merged_data, relevels = c(gender = "FEMALE",
+                          school_type = "public",
+                          ethnicity = "White, not Hispanic",
+                          school_location = "A VILLAGE, A (SMALL) TOWN (FEWER THAN 100 000 PEOPLE)",
+                          immigration_status = "NATIVE",
+                          dad_edu_lvl = "Below High School",
+                          mom_edu_lvl = "Below High School",
+                          home_language = "ENGLISH",
+                          mom_cob = "ANOTHER COUNTRY (USA)",
+                          dad_cob = "ANOTHER COUNTRY (USA)",
+                          student_cob = "ANOTHER COUNTRY (USA)"))
+summary(lm_multvar)
+```
+
+
+## Assumption Check
+We can consider checking the assumptions of the multivariate linear regression model using other methods. Here are some alternative approaches you can try:
+
+* a. Residual plots: Plot the residuals of each dependent variable against their predicted values. You can use the plot() function to create scatter plots or other customized plots to visually inspect any patterns or violations of assumptions.
+
+```{r linearity_check}
+library(car)
+# Linearity and independence of residuals
+plot(lm_read, which = c(1, 2))  
+plot(lm_math, which = c(1, 2))
+plot(lm_science, which = c(1, 2))
+```
+
+
+* b. Normality of residuals: Create normal Q-Q plots of the residuals for each dependent variable. You can use the qqnorm() and qqline() functions to assess whether the residuals follow a roughly normal distribution.
+
+```{r normality_of_residual}
+# Normality of residuals
+qqnorm(lm_read$residuals)
+qqnorm(lm_math$residuals)
+qqnorm(lm_science$residuals)
+```
+
+**Multivariate Normality**: We can perform formal tests, such as the Shapiro-Wilk test or the Kolmogorov-Smirnov test, to assess normality.
+
+```{r mult_var_normality_diagnostic}
+# Load required libraries
+  #library(MVN)
+# Get the residuals from the multivariate regression model
+#residuals <- residuals(lm_multvar)
+# Create a multivariate normality plot
+  #mvn_plot <- mvn(residuals)
+# Plot the multivariate normality diagnostics
+  #plot(mvn_plot)
+
+# Shapiro-Wilk test for multivariate normality
+shapiro_test <- function(residuals) {
+  shapiro_results <- apply(residuals, 2, shapiro.test)
+  p_values <- sapply(shapiro_results, function(x) x$p.value)
+  return(p_values)
+}
+
+# Kolmogorov-Smirnov test for multivariate normality
+ks_test <- function(residuals) {
+  ks_results <- apply(residuals, 2, function(x) ks.test(x, "pnorm")$p.value)
+  return(ks_results)
+}
+
+# Get the residuals from the linear regression model
+residuals <- residuals(lm_read)
+
+# Perform the Shapiro-Wilk test for each dependent variable
+shapiro_pvalues <- shapiro_test(residuals)
+shapiro_pvalues
+
+# Perform the Kolmogorov-Smirnov test for each dependent variable
+ks_pvalues <- ks_test(residuals)
+ks_pvalues
+```
+
+The Shapiro-Wilk test indicated significant departures from multivariate normality for each dependent variable, all ps < .001. The Kolmogorov-Smirnov test also supported the non-normality of the residuals, with all p-values being 0.
+
+* c. Homoscedasticity: Plot the residuals against the predicted values for each dependent variable and check if there is a consistent spread of residuals across the range of predicted values. You can also perform formal tests for homoscedasticity, such as the Breusch-Pagan test or the White test.
+
+```{r Homoscedasticity_check}
+# Homoscedasticity
+plot(lm_read, which = 3)  # Plot 3: Scale-Location (Spread-Level) plot
+plot(lm_math, which = 3)
+plot(lm_science, which = 3)
+```
+
+Independence of residuals: Examine the residuals for any patterns over time or across groups, which may indicate violations of independence. Ensure that the residuals are independent and not correlated with each other. Check for any autocorrelation patterns in the residuals by plotting the autocorrelation function (ACF) or performing formal tests like the Durbin-Watson test.
+
+```{r durbin_watson_test}
+library(lmtest)
+
+# Conduct the Durbin-Watson test
+#dwtest(lm_multvar)
+```
+
+Multicollinearity: Assess the multicollinearity among the independent variables by examining the correlation matrix or calculating variance inflation factors (VIF). High correlations or VIF values above 5 or 10 may indicate multicollinearity.
+
+```{r assumption_check}
+library(car)
+# Linearity and independence of residuals
+plot(lm_read, which = c(1, 2))  # Plot 1: Residuals vs Fitted, Plot 2: Normal Q-Q
+
+# Homoscedasticity
+plot(lm_read, which = 3)  # Plot 3: Scale-Location (Spread-Level) plot
+
+# Normality of residuals
+qqnorm(lm_read$residuals)
+```
+
+
+## Gap Analysis:
+### a. School Location
+```{r s_location}
+# Define the variables and group combinations
+school_location_categories <- c("A VILLAGE, A (SMALL) TOWN (FEWER THAN 100 000 PEOPLE)", "A CITY (100 000 TO ABOUT 1 000 000 PEOPLE)", "A LARGE CITY (WITH OVER 1 000 000 PEOPLE)")
+
+# Create an empty data frame to store the results
+fullResults_school_location <- data.frame()
+
+# Perform the gap analyses for each variable and group combination
+for (variable_name in c("math", "scie", "read")) {
+  for (i in 1:(length(school_location_categories) - 1)) {
+    for (j in (i + 1):length(school_location_categories)) {
+      groupA <- school_location_categories[i]
+      groupB <- school_location_categories[j]
+      
+      output <- gap(variable = variable_name, data = merged_data,
+                    groupA = merged_data$school_location == groupA,
+                    groupB = merged_data$school_location == groupB)
+      
+      results <- output$results
+      
+      results$levelA <- groupA
+      results$levelB <- groupB
+      results$variable <- variable_name
+      
+      fullResults_school_location <- rbind(fullResults_school_location, results)
+    }
+  }
+}
+
+# Reorder the columns
+fullResults_school_location <- fullResults_school_location[, c("variable","levelA", "levelB", colnames(fullResults_school_location)[!colnames(fullResults_school_location) %in% c("variable","levelA", "levelB")])]
+
+
+# Rename the "variable" column to "subject"
+colnames(fullResults_school_location)[1] <- "subject"
+
+# Limit values to 3 decimal places
+fullResults_school_location[, -c(1:3)] <- round(fullResults_school_location[, -c(1:3)], 3)
+
+# Remove "covAB" and "diffABse" columns
+fullResults_school_location <- fullResults_school_location[, !(colnames(fullResults_school_location) %in% c("covAB", "diffABse"))]
+
+# Show the modified results
+fullResults_school_location
+```
+
+Regarding math scores, no significant difference was found between students from a Village or Small Town (estimated mean = 479.598, SE = 4.239) and those from a City (estimated mean = 481.997, SE = 7.681). Additionally, no significant difference was observed between students from a Village or Small Town and those from a Large City (with over 1,000,000 people).
+
+Similar patterns were observed in science and reading scores. No significant differences were found between students from a Village or Small Town and those from a City or a Large City.
+
+The findings indicate that school location does not have a significant impact on academic performance in math, science, and reading. Therefore, factors other than school location might contribute more substantially to the observed differences in academic performance among students.
+
+It is important for future research to explore other variables that may influence academic achievement, such as school resources, teaching quality, or socioeconomic factors. Understanding these factors can inform educational policies and interventions aimed at improving academic outcomes for all students, regardless of their school location.
+
+### b. Immigrant Status
+```{r immigration_status}
+# Define the variables and group combinations
+immigration_status_categories <- c("NATIVE", "FIRST-GENERATION", "SECOND-GENERATION")
+
+# Create an empty data frame to store the results
+fullResults_imm_status <- data.frame()
+
+# Perform the gap analyses for each variable and group combination
+for (variable_name in c("math", "scie", "read")) {
+  for (i in 1:(length(immigration_status_categories) - 1)) {
+    for (j in (i + 1):length(immigration_status_categories)) {
+      groupA <- immigration_status_categories[i]
+      groupB <- immigration_status_categories[j]
+      
+      output <- gap(variable = variable_name, data = merged_data,
+                    groupA = merged_data$immigration_status == groupA,
+                    groupB = merged_data$immigration_status == groupB)
+      
+      results <- output$results
+      
+      results$levelA <- groupA
+      results$levelB <- groupB
+      results$variable <- variable_name
+      
+      fullResults_imm_status <- rbind(fullResults_imm_status, results)
+    }
+  }
+}
+
+# Reorder the columns
+fullResults_imm_status <- fullResults_imm_status[, c("variable", "levelA", "levelB", colnames(fullResults_imm_status)[!colnames(fullResults_imm_status) %in% c("variable", "levelA", "levelB")])]
+
+# Rename the "variable" column to "subject"
+colnames(fullResults_imm_status)[1] <- "subject"
+
+# Limit values to 3 decimal places
+fullResults_imm_status[, -c(1:3)] <- round(fullResults_imm_status[, -c(1:3)], 3)
+
+# Remove "covAB" and "diffABse" columns
+fullResults_imm_status <- fullResults_imm_status[, !(colnames(fullResults_imm_status) %in% c("covAB", "diffABse"))]
+
+# Show the modified results
+fullResults_imm_status
+```
+
+The following interpretation, formatted in APA style, can be included in a peer-reviewed journal:
+
+The present study examined the impact of immigrant status on academic performance in the subjects of math, science, and reading. Three levels of immigrant status were considered: Native, First-Generation, and Second-Generation.
+
+Regarding math scores, significant differences were observed among the levels of immigrant status. Native students (estimated mean = 481.163, SE = 3.310) scored significantly higher than First-Generation students (estimated mean = 460.357, SE = 8.319), with a difference of 20.807 points (p = .011). However, no significant difference was found between Native and Second-Generation students (estimated mean = 485.573, SE = 5.766), nor between First-Generation and Second-Generation students.
+
+Similar patterns were observed in science and reading scores. Native students outperformed First-Generation students with statistically significant differences (p < .001), with a difference of 30.523 points in science and 31.254 points in reading. However, no significant difference was found between Native and Second-Generation students, nor between First-Generation and Second-Generation students.
+
+The findings suggest that being a First-Generation immigrant is associated with lower academic performance compared to Native students. However, the academic performance of Second-Generation students is comparable to that of Native students. These results underscore the potential challenges faced by First-Generation immigrant students and the importance of providing targeted support to facilitate their academic success.
+
+It is crucial for educational institutions to consider the unique needs and experiences of immigrant students and implement strategies to ensure their educational attainment and overall well-being.
+
+### c. Ethnicity
+All Possible combinations:
+
+1. White, not Hispanic vs. Black or African American (WH_BA)
+2. White, not Hispanic vs. Hispanic or Latino (WH_HL)
+3. White, not Hispanic vs. Asian (WH-AS)
+4. White, not Hispanic vs. Other/Two or More Race (WH_OT)
+5. Black or African American vs. Hispanic or Latino (BA_HL)
+6. Black or African American vs. Asian (BA_AS)
+7. Black or African American vs. Other/Two or More Race (BA_OT)
+8. Hispanic or Latino vs. Asian (HL_AS)
+9. Hispanic or Latino vs. Other/Two or More Race (HL_OT)
+10 Asian vs. Other/Two or More Race (AS_OT)
+
+```{r combined_gap}
+# Define the variables and group combinations
+variables <- c("math", "scie", "read")
+variable_names <- c("Math", "Science", "Reading")  # New: Variable names for identification
+group_combinations <- list(
+  list(groupA = "White, not Hispanic", groupB = "Black or African American"),
+  list(groupA = "White, not Hispanic", groupB = "Hispanic or Latino"),
+  list(groupA = "White, not Hispanic", groupB = "Asian"),
+  list(groupA = "White, not Hispanic", groupB = "Other/Two or More Race"),
+  list(groupA = "Black or African American", groupB = "Hispanic or Latino"),
+  list(groupA = "Black or African American", groupB = "Asian"),
+  list(groupA = "Black or African American", groupB = "Other/Two or More Race"),
+  list(groupA = "Hispanic or Latino", groupB = "Asian"),
+  list(groupA = "Hispanic or Latino", groupB = "Other/Two or More Race"),
+  list(groupA = "Asian", groupB = "Other/Two or More Race")
+)
+
+# Create an empty data frame to store the results
+fullResults <- data.frame()
+
+# Perform the gap analyses for each variable and group combination
+for (i in seq_along(variables)) {
+  variable <- variables[i]
+  variable_name <- variable_names[i]  # New: Get the variable name
+  
+  for (group_comb in group_combinations) {
+    groupA <- group_comb$groupA
+    groupB <- group_comb$groupB
+    
+    output <- gap(variable = variable, data = merged_data,
+                  groupA = merged_data$ethnicity == groupA,
+                  groupB = merged_data$ethnicity == groupB)
+    
+    results <- output$results
+    
+    results$levelA <- groupA
+    results$levelB <- groupB
+    results$variable <- variable_name  # New: Add the variable name
+    
+    fullResults <- rbind(fullResults, results)
+  }
+}
+# Replace ethnicity with acronyms in fullResults
+fullResults$levelA <- gsub("White, not Hispanic", "WH", fullResults$levelA)
+fullResults$levelA <- gsub("Black or African American", "BL", fullResults$levelA)
+fullResults$levelA <- gsub("Hispanic or Latino", "HL", fullResults$levelA)
+fullResults$levelA <- gsub("Asian", "AS", fullResults$levelA)
+fullResults$levelA <- gsub("Other/Two or More Race", "OT", fullResults$levelA)
+
+fullResults$levelB <- gsub("White, not Hispanic", "WH", fullResults$levelB)
+fullResults$levelB <- gsub("Black or African American", "BL", fullResults$levelB)
+fullResults$levelB <- gsub("Hispanic or Latino", "HL", fullResults$levelB)
+fullResults$levelB <- gsub("Asian", "AS", fullResults$levelB)
+fullResults$levelB <- gsub("Other/Two or More Race", "OT", fullResults$levelB)
+
+# Reorder the columns
+fullResults <- fullResults[, c("variable", "levelA", "levelB", colnames(fullResults)[!colnames(fullResults) %in% c("variable", "levelA", "levelB")])]
+
+# Rename the "variable" column to "subject"
+colnames(fullResults)[1] <- "subject"
+
+# Limit values to 3 decimal places
+fullResults[, -c(1:3)] <- round(fullResults[, -c(1:3)], 3)
+
+# Remove "covAB" and "diffABse" columns
+fullResults <- fullResults[, !(colnames(fullResults) %in% c("covAB", "diffABse"))]
+
+# Show the modified results
+fullResults
+```
+
+The following interpretation, formatted in APA style, can be included in a peer-reviewed journal:
+
+The current study aimed to examine the influence of ethnicity on academic performance across various combinations. Ten combinations were investigated: White, not Hispanic vs. Black or African American (WH_BA); White, not Hispanic vs. Hispanic or Latino (WH_HL); White, not Hispanic vs. Asian (WH_AS); White, not Hispanic vs. Other/Two or More Race (WH_OT); Black or African American vs. Hispanic or Latino (BA_HL); Black or African American vs. Asian (BA_AS); Black or African American vs. Other/Two or More Race (BA_OT); Hispanic or Latino vs. Asian (HL_AS); Hispanic or Latino vs. Other/Two or More Race (HL_OT); and Asian vs. Other/Two or More Race (AS_OT).
+
+In terms of math scores, significant differences were found across the ethnic combinations. White, not Hispanic students (estimated mean = 503.480, SE = 3.462) scored significantly higher than Black or African American students (estimated mean = 418.778, SE = 5.840), with a difference of 84.702 points (p < .001). Additionally, White, not Hispanic students scored significantly higher than Hispanic or Latino students (estimated mean = 451.563, SE = 4.522), with a difference of 51.916 points (p < .001). However, White, not Hispanic students scored significantly lower than Asian students (estimated mean = 539.095, SE = 8.555), with a difference of -35.616 points (p < .001). No significant difference was observed between White, not Hispanic and Other/Two or More Race students (estimated mean = 473.248, SE = 5.340).
+
+Similar patterns were observed for science and reading scores. White, not Hispanic students consistently outperformed Black or African American students, Hispanic or Latino students, and Asian students across the respective combinations. The differences in mean scores were statistically significant (p < .001) and ranged from 22.061 to 120.317 points.
+
+The findings highlight disparities in academic performance across different ethnic groups. White, not Hispanic students generally achieved higher math, science, and reading scores compared to other ethnic groups. These results underscore the importance of addressing educational inequalities and implementing targeted interventions to support students from underrepresented ethnic backgrounds.
+
+### d. Fathers' Educational Level
+* Combination 1 : Below High School vs ISCED 3A, ISCED 4 
+* Combination 2 : Below High School vs ISCED 5A, 6 
+* Combination 3 : Below High School vs ISCED 5B 
+* Combination 4 : ISCED 3A, ISCED 4 vs ISCED 5A, 6 
+* Combination 5 : ISCED 3A, ISCED 4 vs ISCED 5B 
+* Combination 6 : ISCED 5A, 6 vs ISCED 5B 
+
+```{r dad_edu}
+# Define the dad_edu_lvl categories
+dad_edu_lvl_categories <- c("Below High School", "ISCED 3A, ISCED 4", "ISCED 5A, 6", "ISCED 5B")
+
+# Create an empty data frame to store the results
+fullResults_dad <- data.frame()
+
+# Perform the gap analyses for each variable and group combination
+for (variable_name in c("math", "scie", "read")) {
+  for (i in 1:(length(dad_edu_lvl_categories) - 1)) {
+    for (j in (i + 1):length(dad_edu_lvl_categories)) {
+      groupA <- dad_edu_lvl_categories[i]
+      groupB <- dad_edu_lvl_categories[j]
+      
+      output <- gap(variable = variable_name, data = merged_data,
+                    groupA = merged_data$dad_edu_lvl == groupA,
+                    groupB = merged_data$dad_edu_lvl == groupB)
+      
+      results <- output$results
+      
+      results$levelA <- groupA
+      results$levelB <- groupB
+      results$variable <- variable_name
+      
+      fullResults_dad <- rbind(fullResults_dad, results)
+    }
+  }
+}
+
+# Reorder the columns
+fullResults_dad <- fullResults_dad[, c("variable", "levelA", "levelB", colnames(fullResults_dad)[!colnames(fullResults_dad) %in% c("variable", "levelA", "levelB")])]
+
+# Rename the "variable" column to "subject"
+colnames(fullResults_dad)[1] <- "subject"
+
+# Limit values to 3 decimal places
+fullResults_dad[, -c(1:3)] <- round(fullResults_dad[, -c(1:3)], 3)
+
+# Remove "covAB" and "diffABse" columns
+fullResults_dad <- fullResults_dad[, !(colnames(fullResults_dad) %in% c("covAB", "diffABse"))]
+
+# Show the modified results
+fullResults_dad
+```
+
+The following interpretation, formatted in APA style, can be included in a peer-reviewed journal:
+
+The present study investigated the influence of fathers' educational level on academic performance. Six combinations were examined: Combination 1 compared students with fathers having below high school education to those with ISCED 3A or ISCED 4 education; Combination 2 compared students with below high school education to those with ISCED 5A or 6 education; Combination 3 compared students with below high school education to those with ISCED 5B education; Combination 4 compared students with ISCED 3A or ISCED 4 education to those with ISCED 5A or 6 education; Combination 5 compared students with ISCED 3A or ISCED 4 education to those with ISCED 5B education; and Combination 6 compared students with ISCED 5A or 6 education to those with ISCED 5B education.
+
+Regarding math scores, students whose fathers had below high school education (estimated mean = 437.525, SE = 4.286) scored significantly lower than those with ISCED 3A or ISCED 4 education (estimated mean = 466.539, SE = 3.595), with a difference of 29.014 points (p < .001). Additionally, students with below high school education performed significantly lower than those with ISCED 5A or 6 education (estimated mean = 510.514, SE = 4.115), with a difference of 72.989 points (p < .001). Furthermore, students with below high school education achieved significantly lower scores compared to those with ISCED 5B education (estimated mean = 469.402, SE = 5.450), with a difference of 31.877 points (p < .001). The degrees of freedom for these comparisons ranged from 55.295 to 89.733.
+
+Similar patterns were observed for science and reading scores. Students with fathers having below high school education consistently obtained lower scores across all combinations. The differences in mean scores were statistically significant (p < .001) and ranged from 26.895 to 72.989 points.
+
+The findings highlight the impact of fathers' educational level on academic performance. Students whose fathers had higher education levels achieved higher math, science, and reading scores. These results suggest that interventions aiming to improve educational outcomes should consider the role of paternal education, particularly in fostering academic success among students with fathers having lower levels of education.
+
+### e. Mothers' Education Level
+* Combination 1 : Below High School vs ISCED 3A, ISCED 4 
+* Combination 2 : Below High School vs ISCED 5A, 6 
+* Combination 3 : Below High School vs ISCED 5B 
+* Combination 4 : ISCED 3A, ISCED 4 vs ISCED 5A, 6 
+* Combination 5 : ISCED 3A, ISCED 4 vs ISCED 5B 
+* Combination 6 : ISCED 5A, 6 vs ISCED 5B 
+
+```{r mom_edu}
+# Define the mom_edu_lvl categories
+mom_edu_lvl_categories <- c("Below High School", "ISCED 3A, ISCED 4", "ISCED 5A, 6", "ISCED 5B")
+
+# Create an empty data frame to store the results
+fullResults_mom <- data.frame()
+
+# Perform the gap analyses for each variable and group combination
+for (variable_name in c("math", "scie", "read")) {
+  for (i in 1:(length(mom_edu_lvl_categories) - 1)) {
+    for (j in (i + 1):length(mom_edu_lvl_categories)) {
+      groupA <- mom_edu_lvl_categories[i]
+      groupB <- mom_edu_lvl_categories[j]
+      
+      output <- gap(variable = variable_name, data = merged_data,
+                    groupA = merged_data$mom_edu_lvl == groupA,
+                    groupB = merged_data$mom_edu_lvl == groupB)
+      
+      results <- output$results
+      
+      results$levelA <- groupA
+      results$levelB <- groupB
+      results$variable <- variable_name
+      
+      fullResults_mom <- rbind(fullResults_mom, results)
+    }
+  }
+}
+
+# Reorder the columns
+fullResults_mom <- fullResults_mom[, c("variable", "levelA", "levelB", colnames(fullResults_mom)[!colnames(fullResults_mom) %in% c("variable", "levelA", "levelB")])]
+
+# Rename the "variable" column to "subject"
+colnames(fullResults_mom)[1] <- "subject"
+
+# Limit values to 3 decimal places
+fullResults_mom[, -c(1:3)] <- round(fullResults_mom[, -c(1:3)], 3)
+
+# Remove "covAB" and "diffABse" columns
+fullResults_mom <- fullResults_mom[, !(colnames(fullResults_mom) %in% c("covAB", "diffABse"))]
+
+# Show the modified results
+fullResults_mom
+```
+
+Students whose mothers had higher education levels achieved higher scores in math, science, and reading. The results suggest that interventions aimed at improving educational outcomes should consider the role of maternal education, particularly in promoting academic success among students with lower-educated mothers.
+
+### f. Home Language
+```{r home_language}
+# Define the home_language categories
+home_language_categories <- c("ANOTHER LANGUAGE (USA)", "ENGLISH", "SPANISH")
+
+# Create an empty data frame to store the results
+fullResults_home_language <- data.frame()
+
+# Perform the gap analyses for each variable and group combination
+for (variable_name in c("math", "scie", "read")) {
+  for (i in 1:(length(home_language_categories) - 1)) {
+    for (j in (i + 1):length(home_language_categories)) {
+      groupA <- home_language_categories[i]
+      groupB <- home_language_categories[j]
+      
+      output <- gap(variable = variable_name, data = merged_data,
+                    groupA = merged_data$home_language == groupA,
+                    groupB = merged_data$home_language == groupB)
+      
+      results <- output$results
+      
+      results$levelA <- groupA
+      results$levelB <- groupB
+      results$variable <- variable_name
+      
+      fullResults_home_language <- rbind(fullResults_home_language, results)
+    }
+  }
+}
+
+# Reorder the columns
+fullResults_home_language <- fullResults_home_language[, c("variable", "levelA", "levelB", colnames(fullResults_home_language)[!colnames(fullResults_home_language) %in% c("variable", "levelA", "levelB")])]
+
+# Rename the "variable" column to "subject"
+colnames(fullResults_home_language)[1] <- "subject"
+
+# Limit values to 3 decimal places
+fullResults_home_language[, -c(1:3)] <- round(fullResults_home_language[, -c(1:3)], 3)
+
+# Remove "covAB" and "diffABse" columns
+fullResults_home_language <- fullResults_home_language[, !(colnames(fullResults_home_language) %in% c("covAB", "diffABse"))]
+
+# Show the modified results
+fullResults_home_language
+```
+
+The comparisons indicate that home language, specifically comparing English to another language (USA) and English to Spanish, has an impact on math, science, and reading scores. The differences in mean scores suggest that students with different home languages may perform differently in these subjects.
+
+### Descriptive Study
+data = merged_data
+gender 
+ethnicity 
+school_type 
+school_location 
+immigration_status 
+parent_ocp_yrs 
+dad_edu_lvl 
+mom_edu_lvl 
+home_language 
+mom_cob 
+dad_cob 
+student_cob
+
+```{r pair_wise_corr}
+# Create a new dataframe with selected variables
+new_data <- merged_data[, 3:15]
+#str(new_data)
+
+# Convert categorical variables to dummy variables
+new_data_dummy <- as.data.frame(model.matrix(~.-1, data = as.data.frame(new_data)))
+
+# Compute pairwise correlations
+correlation_matrix <- cor(new_data_dummy)
+#correlation_matrix
+```
+
+## Saving merged_data and doing further analysis
+```{r mancova, echo=TRUE}
+write.csv(merged_data, "school_student_merged_data.csv", row.names = FALSE)
+uploaded_data <- read.csv("school_student_merged_data.csv")
+uploaded_data <- as.data.frame(uploaded_data)
+class(uploaded_data)
+names(uploaded_data)
+```
+
+### Creating Average and SD Scores
+```{r average_sd}
+# Create new variables for average scores
+merged_data <- merged_data %>%
+  mutate(
+    reading_score = rowMeans(select(., starts_with("pv1read"):starts_with("pv10read")), na.rm = TRUE),
+    math_score = rowMeans(select(., starts_with("pv1math"):starts_with("pv10math")), na.rm = TRUE),
+    science_score = rowMeans(select(., starts_with("pv1scie"):starts_with("pv10scie")), na.rm = TRUE)
+  )
+
+# Create new variables for standard deviations
+merged_data <- merged_data %>%
+  mutate(
+    reading_sd = apply(select(., starts_with("pv1read"):starts_with("pv10read")), 1, sd, na.rm = TRUE),
+    math_sd = apply(select(., starts_with("pv1math"):starts_with("pv10math")), 1, sd, na.rm = TRUE),
+    science_sd = apply(select(., starts_with("pv1scie"):starts_with("pv10scie")), 1, sd, na.rm = TRUE)
+  )
+#names(merged_data)
+subset_data <- merged_data[, c("gender", "school_type", "school_location", "immigration_status", "parent_ocp_yrs", "parent_edu_yrs", "parent_edu_lvl", "dad_edu_lvl", "mom_edu_lvl", "home_language", "mom_cob", "dad_cob", "student_cob", "ethnicity", "reading_score", "math_score", "science_score", "reading_sd", "math_sd", "science_sd")]
+names(subset_data)
+```
+
+### MANOVA
+```{r manova}
+library(stats)
+
+# Perform MANOVA
+manova_result <- manova(cbind(reading_score, science_score, math_score) ~ gender + school_type + school_location + immigration_status + parent_ocp_yrs + parent_edu_yrs + dad_edu_lvl + mom_edu_lvl + home_language + mom_cob + dad_cob + student_cob + ethnicity, data = subset_data)
+
+# Print the results
+# Assume that manova_result is your MANOVA model
+summary_manova <- summary(manova_result, intercept = TRUE)
+summary_manova
+```
+
+A multivariate analysis of variance (MANOVA) was conducted to examine the effects of various independent variables on the combined dependent variables, including reading standard deviation, science score, and math score. The results revealed significant effects for several independent variables.
+
+Gender had a significant effect on the combined dependent variables, F(3, 4116) = 271.191, p < .001. School type also showed a significant effect, F(3, 4116) = 5.622, p = .0008. However, school location had a marginal effect on the combined dependent variables, F(9, 12354) = 2.196, p = .0195.
+
+Immigration status exhibited a significant effect on the combined dependent variables, F(9, 12354) = 15.190, p < .001. Similarly, parent occupation years had a significant effect, F(3, 4116) = 206.960, p < .001, as well as parent education years, F(3, 4116) = 39.870, p < .001.
+
+Dad’s education level (F(12, 12354) = 12.092, p < .001), mom’s education level (F(12, 12354) = 4.062, p = .000), and home language (F(9, 12354) = 8.290, p = .000) were found to have significant effects on the combined dependent variables.
+
+Regarding country of birth, mother’s country of birth had a significant effect (F(6, 8234) = 2.521, p = .019), as well as father’s country of birth (F(6, 8234) = 2.688, p = .013). However, student’s country of birth did not have a significant effect on the combined dependent variables (F(6, 8234) = 0.746, p = .612).
+
+Lastly, ethnicity was found to have a significant effect on the combined dependent variables, F(12, 12354) = 51.514, p < .001.
+
+Overall, the results indicate that gender, school type, immigration status, parent occupation years, parent education years, dad’s education level, mom’s education level, home language, mother’s country of birth, father’s country of birth, and ethnicity significantly influenced the combined dependent variables. These findings suggest that these variables play a role in explaining the variations in reading standard deviation, science score, and math score among the participants.
+
+**Implications**:
+
+The findings from the multivariate analysis of variance (MANOVA) have important implications for understanding the factors that influence reading standard deviation, science score, and math score among the participants. The significant effects observed for various independent variables provide valuable insights into educational research.
+
+Firstly, gender was found to have a significant effect on the combined dependent variables. This suggests that there are gender differences in reading standard deviation, science score, and math score. Further investigation into these differences could help identify potential gender-related factors that contribute to variations in academic performance.
+
+Secondly, school type emerged as a significant factor. This implies that different types of schools, such as public, private, or specialized schools, can impact students' academic performance in terms of reading standard deviation, science score, and math score. Understanding the specific characteristics and practices of these school types may provide insights into creating effective educational environments.
+
+Additionally, immigration status was found to significantly influence the combined dependent variables. This highlights the importance of considering the unique needs and challenges faced by immigrant students. By recognizing the impact of immigration status, educators and policymakers can develop targeted interventions and support systems to promote academic success for these students.
+
+Parental factors, such as parent occupation years and parent education years, also demonstrated significant effects. This underscores the role of parental involvement and educational background in shaping students' academic performance. Parents' occupational experiences and level of education may influence their ability to provide support, resources, and guidance to their children, which can impact their educational outcomes.
+
+The education levels of both the father and mother were found to be significant predictors of the combined dependent variables. This suggests that parental education plays a crucial role in students' academic performance. Educators and policymakers should consider strategies to enhance parental education and engagement to support students' educational achievements.
+
+Home language was another significant factor influencing the combined dependent variables. This emphasizes the importance of considering students' linguistic backgrounds and providing appropriate language support and resources. Recognizing and valuing students' home languages can contribute to inclusive and effective educational practices.
+
+Moreover, the country of birth of parents exhibited significant effects, while the student's country of birth did not. This suggests that parental country of birth may have a greater influence on academic performance than the student's own country of birth. Understanding the cultural and contextual factors associated with parental country of birth can inform efforts to address educational disparities and promote equity in education.
+
+Lastly, ethnicity was found to have a significant effect on the combined dependent variables. This highlights the role of cultural and ethnic factors in shaping students' academic performance. Recognizing and addressing the unique needs and experiences of students from different ethnic backgrounds can help create culturally responsive educational practices and promote educational equity.
+
+In conclusion, the findings of this MANOVA analysis provide valuable insights into the complex interplay of various factors influencing reading standard deviation, science score, and math score among students. The identified variables, including gender, school type, immigration status, parental factors, home language, country of birth, and ethnicity, all contribute to explaining the variations in academic performance. These findings can guide educational researchers, policymakers, and practitioners in designing interventions and strategies that promote educational equity and enhance students' academic outcomes.
+```{r plots}
+library(ggplot2)
+library(tidyr)
+library(gridExtra)
+
+# Create a new dataset with the necessary columns
+plot_data <- subset_data %>%
+  select(mom_edu_lvl, dad_edu_lvl, reading_score, science_score, math_score) %>%
+  pivot_longer(cols = c(reading_score, science_score, math_score),
+               names_to = "variable",
+               values_to = "score")
+
+# Filter out "NA" and "NO RESPONSE" categories from the plot data
+filtered_plot_data <- plot_data %>%
+  filter(mom_edu_lvl != "NA", mom_edu_lvl != "NO RESPONSE",
+         dad_edu_lvl != "NA", dad_edu_lvl != "NO RESPONSE")
+
+# Bar plot for mom_edu_lvl
+plot_mom <- ggplot(filtered_plot_data, aes(x = mom_edu_lvl, y = score, fill = variable)) +
+  geom_bar(stat = "summary", fun = "mean", position = position_dodge(width = 0.8)) +
+  labs(x = "Mom", y = "Mean Score") +
+  ggtitle("") +
+  theme_bw() +
+  guides(fill = FALSE)
+
+# Bar plot for dad_edu_lvl without legend
+plot_dad <- ggplot(filtered_plot_data, aes(x = dad_edu_lvl, y = score, fill = variable)) +
+  geom_bar(stat = "summary", fun = "mean", position = position_dodge(width = 0.8)) +
+  labs(x = "Dad", y = "") +
+  ggtitle("") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+# Modify the labels for mom_edu_lvl
+plot_mom <- plot_mom + scale_x_discrete(labels = function(x) {
+  ifelse(x == "Below High School", "Below HS", ifelse(x == "ISCED 3A, ISCED 4", "ISCED (3A-4)", x))
+})
+
+# Modify the labels for dad_edu_lvl
+plot_dad <- plot_dad + scale_x_discrete(labels = function(x) {
+  ifelse(x == "Below High School", "Below HS", ifelse(x == "ISCED 3A, ISCED 4", "ISCED (3A-4)", x))
+})
+
+# Combine the plots side by side with a common legend
+#combined_plots <- grid.arrange(plot_mom, plot_dad, ncol = 2, bottom = "Math, Reading, and Science Scores, respectively.")
+
+
+# Save the combined plots
+#ggsave("parent_education_and_scores.png", combined_plots, width = 8, height = 5, dpi = 300, bg = "white")
+```
+
+parent_education_and_scores.png
+
+## Ethnicity Plot
+```{r ethnicity_plot}
+# Load the required libraries
+library(ggplot2)
+library(ggthemes)
+
+# Create a color palette for the test subjects
+color_palette <- c("#003f5c", "#58508d", "#bc5090")
+
+# Remove NA values
+subset_data <- subset_data[complete.cases(subset_data), ]
+
+# Reshape the data from wide to long format
+long_data <- reshape(subset_data, varying = c("reading_score", "math_score", "science_score"), v.names = "value", timevar = "variable", times = c("Reading", "Math", "Science"), direction = "long")
+
+# Rearrange the ethnicity order
+long_data$ethnicity <- factor(long_data$ethnicity, levels = c("Asian", "White, not Hispanic", "Other/Two or More Race", "Hispanic or Latino", "Black or African American"))
+
+# Create a grouped bar plot for ethnicity and test scores
+ethnicity_plot <- ggplot(long_data, aes(x = ethnicity, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Ethnicity", y = "Test Scores", fill = "Test Subject") +
+  scale_fill_manual(values = color_palette, guide = guide_legend(title = NULL)) +
+  scale_x_discrete(labels = c("White, not Hispanic" = "White", 
+                              "Black or African American" = "Black",
+                              "Hispanic or Latino" = "Hispanic",
+                              "Other/Two or More Race" = "Two or More Races",
+                              "Asian")) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    legend.text = element_text(size = 10),
+    legend.title = element_blank(),
+    axis.line = element_line(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold")
+  )
+# Save the plot as a PNG file
+#ggsave("ethnicity_grouped_bar_plot.png", ethnicity_plot, width = 8, height = 6, dpi = 300, bg = "white")
+#ethnicity_plot
+```
+
+ethnicity_grouped_bar_plot.png
+
+## Mother's Educational Level
+```{r mothers_education}
+# Filter out "NO RESPONSE" category
+filtered_data <- long_data[long_data$mom_edu_lvl != "NO RESPONSE", ]
+filtered_data <- filtered_data[filtered_data$dad_edu_lvl != "NO RESPONSE", ]
+filtered_data$mom_edu_lvl <- factor(filtered_data$mom_edu_lvl, levels = c("Below High School", "ISCED 3A, ISCED 4", "ISCED 5B", "ISCED 5A, 6"))
+
+# Create a grouped bar plot for mom_edu_lvl and test scores
+mom_edu_plot <- ggplot(filtered_data, aes(x = mom_edu_lvl, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Mother's Educational Level", y = "Test Scores", fill = "Test Subject") +
+  scale_fill_manual(values = color_palette, guide = guide_legend(title = NULL)) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    legend.text = element_text(size = 10),
+    legend.title = element_blank(),
+    axis.line = element_line(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold")
+  )
+
+# Save the plot as a PNG file
+#ggsave("grouped_bar_plot_mom_edu_lvl.png", mom_edu_plot, width = 8, height = 6, dpi = 300, bg = "white")
+
+#mom_edu_plot
+#summary(filtered_data)
+```
+
+grouped_bar_plot_mom_edu_lvl.png
+
+## Father's Educational Level and Students' Test Scores 
+```{r father_education}
+# Filter out "NO RESPONSE" category
+filtered_data <- filtered_data[filtered_data$dad_edu_lvl != "NO RESPONSE", ]
+
+filtered_data$dad_edu_lvl <- factor(filtered_data$dad_edu_lvl, levels = c("Below High School", "ISCED 3A, ISCED 4", "ISCED 5B", "ISCED 5A, 6"))
+
+# Create a grouped bar plot for mom_edu_lvl and test scores
+dad_edu_plot <- ggplot(filtered_data, aes(x = dad_edu_lvl, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Father's Educational Level", y = "Test Scores", fill = "Test Subject") +
+  scale_fill_manual(values = color_palette, guide = guide_legend(title = NULL)) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    legend.text = element_text(size = 10),
+    legend.title = element_blank(),
+    axis.line = element_line(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold")
+  )
+
+# Save the plot as a PNG file
+#ggsave("grouped_bar_plot_dad_edu_lvl.png", dad_edu_plot, width = 8, height = 6, dpi = 300, bg = "white")
+#dad_edu_plot
+```
+
+grouped_bar_plot_dad_edu_lvl.png
+
+## Parents' Occupation 
+```{r occupation}
+# Define a color palette with distinct and vibrant colors
+color_palette_2 <- c("#FF6F61", "#6B5B95", "#88B04B")
+
+# Create a scatter plot for parent_ocp_yrs with a fit line and facet_wrap
+parent_ocp_plot <- ggplot(filtered_data, aes(x = parent_ocp_yrs, y = value, color = variable)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "yellow") +
+  labs(x = "Parents' Occupation Level", y = "Test Scores", color = "Test Subject") +
+  scale_color_manual(values = color_palette, guide = guide_legend(title = NULL)) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 12),
+    legend.position = "none",
+    legend.text = element_text(size = 10),
+    legend.title = element_blank(),
+    axis.line = element_line(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold")
+  ) +
+  facet_wrap(~ variable, nrow = 1)
+
+# Save the plot as a PNG file
+#ggsave("scatter_plot_parent_ocp_yrs.png", parent_ocp_plot, width = 8, height = 6, dpi = 300, bg = "white")
+
+#parent_ocp_plot
+```
+
+![](scatter_plot_parent_ocp_yrs.png)
+
+## Home Language
+```{r home_lang}
+# Filter out "NO RESPONSE" category
+filtered_data <- filtered_data[filtered_data$home_language != "MISSING", ]
+# Filter out rows with missing values in home_language
+filtered_data <- filtered_data[!is.na(filtered_data$home_language), ]
+
+# Create a box plot for home_language
+home_language_plot <- ggplot(filtered_data, aes(x = home_language, y = value, fill = variable)) +
+  geom_boxplot() +
+  labs(x = "Home Language", y = "Test Scores", fill = "Test Subject") +
+  scale_fill_manual(values = color_palette, guide = guide_legend(title = NULL)) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    legend.text = element_text(size = 10),
+    legend.title = element_blank(),
+    axis.line = element_line(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold")
+  )
+
+# Save the plot as a PNG file
+#ggsave("box_plot_home_language.png", home_language_plot, width = 8, height = 6, dpi = 300, bg = "white")
+
+#home_language_plot
+```
+
+box_plot_home_language.png
+
+## Ethnicity Further Plots
+### Strip Plot
+```{r ethnicity_strip_plot}
+# Calculate mean scores for each group in Math, Science, and Reading
+mean_scores <- aggregate(value ~ ethnicity + variable, long_data, mean)
+
+# Rearrange the ethnicity order
+long_data$ethnicity <- factor(long_data$ethnicity, levels = c("Asian", "White, not Hispanic", "Other/Two or More Race", "Hispanic or Latino", "Black or African American"))
+
+# Create a strip plot for ethnicity and test scores
+strip_plot <- ggplot(long_data, aes(x = ethnicity, y = value, color = variable)) +
+  geom_jitter(width = 0.3, height = 0, alpha = 0.7) +
+  labs(x = "Ethnicity", y = "Test Scores", color = "Test Subject") +
+  scale_color_manual(values = color_palette, guide = guide_legend(title = NULL)) +
+  scale_x_discrete(labels = c("White, not Hispanic" = "White", 
+                              "Black or African American" = "Black",
+                              "Hispanic or Latino" = "Hispanic",
+                              "Other/Two or More Race" = "Two or More Races",
+                              "Asian")) +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    legend.text = element_text(size = 10),
+    legend.title = element_blank(),
+    axis.line = element_line(),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold")
+  )+
+  geom_errorbar(data = mean_scores, aes(ymin = value, ymax = value), color = "yellow", width = 0.6, position = position_dodge(0.9))
+
+# Save the plot as a PNG file
+#ggsave("ethnicity_strip_plot.png", strip_plot, width = 8, height = 6, dpi = 300, bg = "white")
+#strip_plot
+```
+
+ethnicity_strip_plot.png
+
+## Combined Plot
+```{r combined_plot}
+library(gridExtra)
+# Arrange the plots in a 2x2 grid
+#grid <- grid.arrange(strip_plot, home_language_plot, dad_edu_plot, mom_edu_plot, nrow = 2)
+
+# Save the grid as a PNG file
+#ggsave("combined_plots_grid.png", grid, width = 12, height = 8, dpi = 300, bg = "white")
+```
+
+![Plots Grid](combined_plots_grid.png)

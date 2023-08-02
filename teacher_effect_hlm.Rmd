@@ -1,0 +1,372 @@
+---
+title: Teachers' Impact on Student Reading Scores Using Teacher Survey, Part II
+author: 
+- name: "Nirmal Ghimire, Ph.D."
+  url: https://www.linkedin.com/in/nirmal-ghimire-5b96a034/
+  affiliation: K-16 Literacy Center at University of Texas at Tyler
+  affiliation_url: https://www.uttyler.edu/education/literacy-center/
+  orcid_id: 0000-0002-2032-1624
+date: "`r Sys.Date()`"
+output: distill::distill_article
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      comment = NA,
+                      warning = FALSE,
+                      message = FALSE,
+                      tidy = 'styler',
+                      error = FALSE, 
+                      highlight = TRUE, 
+                     prompt = FALSE)
+library(haven)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(car)# For Levene's Test
+library(compute.es)# For effect sizes
+library(effects) # for adjusted means
+library(pastecs) # for descriptive statistics
+library(multcomp) # For post hoc test
+library(WRS2) # for robust tests
+library(lme4) # To conduct Hierarchical Modeling
+library(lmerTest) # To provide p-values in type I, II, or III anova summary tables for linear mixed models
+library(geomtextpath)
+```
+
+
+```{r reading_score_teacher_employment}
+# Loading Files
+teacher_final <- read.csv("C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/teacher_data_final.csv", 
+                      as.is = TRUE)
+    str(teacher_final)
+    #summary(teacher_final)
+    
+teacher_imputed <- read.csv("C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/imputed_teacher_data.csv", 
+                      as.is = TRUE)
+    str(teacher_imputed)
+```
+
+```{r changing_labels}
+# Teacher Data
+teacher_final$teacher_id <- as.factor(teacher_final$teacher_id)
+teacher_final$gender <- factor(teacher_final$gender, levels = c(0,1), labels = c("Female", "Male"))
+teacher_final$teacher_type <- factor(teacher_final$teacher_type, levels = c(0,1), labels = c("Reading-Language Teacher", "General Teacher"))
+teacher_final$full_time <- factor(teacher_final$full_time, levels = c(0,1), labels = c("Full-Time", "Part-Time"))
+teacher_final$emp_stat <- factor(teacher_final$emp_stat, levels = c(0,1,2,3), labels = c("Full-Time", "Part-Time, 71-90% of Full-Time Hours", "Part-Time, 50-70% of Full-Time Hours", "Part-Time, less than 50% of Full-Time Hours"))
+teacher_final$teacher_edu <- factor(teacher_final$teacher_edu, levels = c(0, 1, 2), labels = c("None. No Teacher Education", "Program of 1 Year or Less", "Yes, Program Longer than 1 Year"))
+teacher_final$initial_qual <- factor(teacher_final$initial_qual, levels = c(0,1,2,3,4), labels = c("Pre-service: Strandard Teacher Training Program", "In-service: Teacher Training Program", "Work-Based Teacher Training", "Training on Another Pedagogical Profession", "Other"))
+teacher_final$training <- factor(teacher_final$training, levels = c(0,1), labels = c("Participated", "Didn't Participate"))
+teacher_final$workshop <- factor(teacher_final$workshop, levels = c(0,1), labels = c("Participated", "Didn't Participate"))
+teacher_final$prof_dev <- factor(teacher_final$prof_dev, levels = c(0,1), labels = c("Participated", "Didn't Participate"))
+
+summary(teacher_final)
+#write.csv(teacher_final, "t_final.csv")
+  
+# Imputed Data
+teacher_imputed$teacher_id <- as.factor(teacher_imputed$teacher_id)
+teacher_imputed$gender <- factor(teacher_imputed$gender, levels = c(0,1), labels = c("Female", "Male"))
+teacher_imputed$teacher_type <- factor(teacher_imputed$teacher_type, levels = c(0,1), labels = c("Reading-Language Teacher", "General Teacher"))
+teacher_imputed$full_time <- factor(teacher_imputed$full_time, levels = c(0,1), labels = c("Full-Time", "Part-Time"))
+teacher_imputed$emp_stat <- factor(teacher_imputed$emp_stat, levels = c(0,1,2,3), labels = c("Full-Time", "Part-Time, 71-90% of Full-Time Hours", "Part-Time, 50-70% of Full-Time Hours", "Part-Time, less than 50% of Full-Time Hours"))
+teacher_imputed$teacher_edu <- factor(teacher_imputed$teacher_edu, levels = c(0, 1, 2), labels = c("None. No Teacher Education", "Program of 1 Year or Less", "Yes, Program Longer than 1 Year"))
+teacher_imputed$initial_qual <- factor(teacher_imputed$initial_qual, levels = c(0,1,2,3,4), labels = c("Pre-service: Strandard Teacher Training Program", "In-service: Teacher Training Program", "Work-Based Teacher Training", "Training on Another Pedagogical Profession", "Other"))
+teacher_imputed$training <- factor(teacher_imputed$training, levels = c(0,1), labels = c("Participated", "Didn't Participate"))
+teacher_imputed$workshop <- factor(teacher_imputed$workshop, levels = c(0,1), labels = c("Participated", "Didn't Participate"))
+teacher_imputed$prof_dev <- factor(teacher_imputed$prof_dev, levels = c(0,1), labels = c("Participated", "Didn't Participate"))
+
+summary(teacher_imputed)
+```
+
+## Various Teachers' Characteristics and Students' Reading Score
+### a. Teacher Education
+```{r means_by_teacher_education_types}
+teacher_final|>
+  na.omit()|>
+    group_by(teacher_edu)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+
+### b. Teachers' Gender
+```{r gender}
+teacher_final|>
+  na.omit()|>
+    group_by(gender)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### c. Teacher Type
+```{r teacher_type}
+teacher_imputed|>
+  na.omit()|>
+    group_by(teacher_type)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### d. Teaching Status
+```{r teaching_status}
+teacher_final|>
+  na.omit()|>
+    group_by(full_time)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### e. Teaching Status Imputed Data
+```{r imputed_teaching_status}
+teacher_imputed|>
+      group_by(full_time)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### f. Employment Status
+```{r employment_status}
+teacher_final|>
+  na.omit()|>
+    group_by(emp_stat)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### g. Initial Qualification
+```{r initial_qualification}
+teacher_final|>
+  na.omit()|>
+    group_by(initial_qual)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### g. Teacher Training Opportunities in Last 12-Months' Period
+```{r teacher_training}
+teacher_final|>
+  na.omit()|>
+    group_by(training)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### h. Workshop Opportunities in Last 12-Months' Period
+```{r workshop}
+teacher_final|>
+  na.omit()|>
+    group_by(workshop)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### i. Professional Development Opportunity in Last 12-Months' Period
+```{r professional_development}
+teacher_final|>
+  na.omit()|>
+    group_by(prof_dev)|>
+  summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score),
+            total_teacher = n())
+```
+
+### Teacher Education and Students' Reading Scores
+```{r visualization_1}
+teacher_edu_density <- teacher_imputed|>
+  ggplot(aes(x = reorder(teacher_edu, reading_score), y = reading_score))+
+    geom_boxplot(fill = "white", colour = "blue", varwidth = TRUE)+
+  geom_hline(yintercept = 505, label = "National Average", hjust = 1, vjust = 0.5, size = .3)+
+  labs(title = "Comparative Reading Scores Based on Teachers' Education",
+    x = "Teacher Education",
+       y = "Reading Scores")+
+  geom_text(label = "National Average",
+             x = 1.4, y = 370,
+            family = "serif",
+            size = 2.3)+ 
+  geom_segment(aes(x = 1.4, y = 400, xend = 1.4, yend = 500), 
+               linewidth = 0.06,
+               arrow = arrow(length = unit(.05, 'cm')))+
+  theme(legend.position = "none")+
+  coord_flip()+
+      theme_classic()
+teacher_edu_density  
+#ggsave("teacher_education_vs_reading_scores.tiff", units="in", width=6.5, height=4, #dpi=300, compression = 'lzw')
+```
+
+### Teacher Type, Teaching Experience, and Students' Readign Scores
+```{r teacher_type_&_reading_scores}
+library(dendextend)
+english_teacher <- subset(teacher_imputed, teacher_type == "Reading-Language Teacher")
+#head(english_teacher)
+general_teacher <- subset(teacher_imputed, teacher_type == "General Teacher")
+#head(general_teacher)
+
+et_box <- ggplot(teacher_imputed, 
+                 aes(teacher_type, reading_score))+
+  geom_boxplot(alpha = 0.5, width = 0.3) + 
+  stat_summary(fun = mean, size = 2, geom = "point") +
+  stat_summary(fun = mean, geom = "text", vjust = -0.6,
+               aes(label = paste(round(..y.., digits = 2))))+
+  scale_x_discrete(labels = c("Reading Teacher", "General Teacher"))+
+      ggpubr::theme_classic2()
+      #et_box
+
+
+library(geomtextpath)
+te_scat <- ggplot(teacher_imputed, 
+       aes(x = reading_score, y = teaching_exp, color = teacher_type, label = teacher_type))+
+    geom_labelsmooth(method = "lm", boxlinewidth = 0) + 
+  labs(title = "",
+    x = "Reading Scores",
+       y = "Teaching Experience")+
+  theme_classic() + 
+  theme(legend.position = "none")
+# Putting Plots Together
+comined_plot <- ggpubr::ggarrange(et_box, te_scat,
+                  ncol = 2, align = "h",
+                  common.legend = FALSE)
+comined_plot
+#ggsave("teacher_type_experience_reading_scores.tiff", units="in", width=6.5, height=4, #dpi=300, compression = 'lzw')
+```
+
+### Hierarchical Linear Models
+#### Null Models
+```{r linear_model}
+hlm_null <- nlme::gls(reading_score ~ 1, data = teacher_final, method = "ML")
+
+hlm_null_intercept <- nlme::lme(reading_score ~ 1, data = teacher_imputed, random = ~1|school_id, method = "ML")
+
+anova(hlm_null, hlm_null_intercept)
+```
+
+#### Null Model with Imputed Data 
+```{r null_model_1}
+hlm_null_1 <- nlme::gls(reading_score ~ 1, data = teacher_imputed, method = "ML")
+
+summary(hlm_null_1)
+```
+
+#### Null Model with Random Intercept
+```{r null_model_with_random_intercept}
+hlm_null_1_intercept <- nlme::lme(reading_score ~ 1, data = teacher_imputed, random = ~1|school_id, method = "ML")
+
+summary(hlm_null_1_intercept)
+```
+
+#### Model Comparison
+```{r checking_for_hlm_fit}
+anova(hlm_null_1,hlm_null_1_intercept)
+```
+
+
+### Teacher Null
+```{r teacher_null}
+teacher_null <- nlme::gls(reading_score ~ 1, data = teacher_imputed, method = "ML")
+summary(teacher_null)
+
+teacher_null_rintercept <- nlme::lme(reading_score ~ 1, data = teacher_imputed, random = ~1|teacher_id, method = "ML")
+summary(teacher_null_rintercept)
+
+anova(teacher_null,teacher_null_rintercept)
+```
+
+
+### HLM Full
+```
+{r hlm_gender}
+hlm_full <- lmer(reading_score ~ gender + age + teacher_type + full_time + teaching_exp + teacher_edu + initial_qual + training + workshop + prof_dev + (gender + age + teacher_type + full_time + teaching_exp + teacher_edu + initial_qual + training + workshop + prof_dev| school_id), data = teacher_imputed)
+
+summary(hlm_full)
+
+#effectsize::standardize_parameters(hlm_full, method = "pseudo")
+
+#confint(hlm_full)
+```
+
+### Quantile Regression for Visualiztion
+```{r quantile_regression}
+library(quantreg)
+quant_1 <- rq(formula = reading_score ~ teaching_exp, tau=c(.05, .25, .50, .75, .95), data = teacher_imputed, method = "fn")
+summary(quant_1)
+# Plotting the Output and Saving as .pdf
+pdf("teaching_experience_readin_score.pdf", width = 6.5, height = 7)
+plot(quant_1)
+dev.off()
+```
+
+*"nid" for SE are computed using the Hall-Sheather bandwidth rule. We can use "ker" instead, if we want Powell kernel version, "boot" for bootstrap, etc. (visit: https://cran.r-project.org/web/packages/quantreg/vignettes/rq.pdf)*
+
+
+```{r quantile_two}
+teacher_imputed$reading_score <- as.numeric(as.factor(teacher_imputed$reading_score))
+teacher_imputed$teaching_exp <- as.numeric(as.factor(teacher_imputed$teaching_exp))
+attach(teacher_imputed)
+png("quantile_experience_vs_reading_scores.png")
+plot(reading_score, teaching_exp, xlab = "Students' Reading Scores", ylab = "Teacher Experience in Years", type = "n", xaxt = "n")
+tau_s <- c(.1, .25, .75, .95)
+
+abline(rq(log10(reading_score)~log10(teaching_exp), tau = .5), col = "blue")
+abline(lm(log10(reading_score)~log10(teaching_exp), lty = 3), col = "red")
+for(i in 1:length(tau_s)){
+  abline(rq(log10(reading_score)~log10(teaching_exp), tau = tau_s[i]), col = "gray")
+}
+
+dev.off()
+```
+
+
+### Teachers' Age and Average School Reading Scores
+```{r quantile_three}
+quant_3 <- rq(formula = reading_score ~ age, tau=c(0.05, .25, .50, .75, 0.95), data = teacher_final, method = "fn")
+summary(quant_3)
+
+plot(quant_3)
+
+# Plotting the Output and Saving as .pdf
+pdf("age_reading_score.pdf", width = 6.5, height = 7)
+plot(quant_3)
+dev.off()
+
+#ggplot(teacher_final, aes(reading_score,age))+
+    #geom_quantile(quantiles = c(0.05, .25, .50, .75, 0.95))+ #theme_classic()
+
+plot(summary(quant_3), parm = "age")
+```
+
+### Age and Teacher Experience
+```{r age_experience}
+quant_4 <- rq(formula = age ~ teaching_exp, tau = c(.1, .25, 0.5, .75, .95), data = teacher_imputed)
+summary(quant_4)
+# Plotting the Output and Saving as .pdf
+plot(quant_4)
+```
+
+### Reading Scores Description
+```{r reading_score_only}
+# (3526) reading scores
+teacher_final|>
+     summarise(M_EAN = mean(reading_score),
+            S_D = sd(reading_score), 
+            total_teacher = n())
+# (1675 teachers)
+teacher_final|>
+  na.omit()|>
+     summarise(M_EAN = mean(age),
+            S_D = sd(age), 
+            total_teacher = n())
+# (1675 teachers)
+teacher_final|>
+  na.omit()|>
+     summarise(M_EAN = mean(teaching_exp),
+            S_D = sd(teaching_exp), 
+            total_teacher = n())
+```

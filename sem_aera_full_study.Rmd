@@ -1,0 +1,730 @@
+---
+title: 'Structural Equation Modeling for AERA: Combined Study'
+author: 
+- name: "Nirmal Ghimire, Ph.D."
+  url: https://www.linkedin.com/in/nirmal-ghimire-5b96a034/
+  affiliation: K-16 Literacy Center at University of Texas at Tyler
+  affiliation_url: https://www.uttyler.edu/education/literacy-center/
+  orcid_id: 0000-0002-2032-1624
+date: "`r Sys.Date()`"
+output: 
+  distill::distill_article:
+    toc: true
+    toc_float: true
+    code_folding: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      comment = NA,
+                      warning = FALSE,
+                      message = FALSE,
+                      tidy = 'styler',
+                      error = FALSE, 
+                      highlight = TRUE, 
+                     prompt = FALSE)
+```
+
+```{r library}
+library(haven)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(janitor)
+#library(car)# For Levene's Test
+library(compute.es)# For effect sizes
+library(effects) # for adjusted means
+library(pastecs) # for descriptive statistics
+#library(multcomp) # For post hoc test
+#library(WRS2) # for robust tests
+#library(lme4) # To conduct Hierarchical Modeling
+#library(lmerTest) # To provide p-values in type I, II, or III anova summary tables for linear mixed models
+library(geomtextpath)
+library(lavaan)
+library(lavaanPlot)
+library(tidySEM)
+library(semTable)
+#library(mice)
+#library(ggmice)
+library(reshape2)
+library(QuantPsyc)
+```
+
+## 1. Teacher Characteristics
+
+```{r teacher_data}
+# School Student Data
+teacher_data <- read.csv("C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/t_data.csv")
+str(teacher_data)
+# Changing Character Vectors to Factors 
+teacher_data[] <- lapply(teacher_data, function(x) if(is.character(x)) as.factor(x) else x)
+# Summarize
+#summary(teacher_data)
+```
+
+```{r modeling_teacher_data}
+# Collapsing some of the subcategories
+## highest_education
+teacher_data <- teacher_data|>
+  mutate(high_education = recode(highest_education,
+                                    "Associate’s degree" = 'High School; Some College; Associates Degree',
+                                    "High school and/or some college courses" = 'High School; Some College; Associates Degree'))
+### Getting Rid of highest_education variable
+  teacher_data$highest_education <- NULL
+
+## initial_qual
+ teacher_data <- teacher_data|>
+   mutate(init_qual = recode(initial_qual,
+                             "Other" = 'Training on Other Pedagogical Profession or Other',
+                             "Training on Another Pedagogical Profession" = 'Training on Other Pedagogical Profession or Other'))
+### Getting Rid of initial_qual variable
+  teacher_data$initial_qual <- NULL
+  
+#summary(teacher_data)
+```
+
+```{r releveling_teacher_data}
+## Relevel
+teacher_data$gender <- relevel(teacher_data$gender, ref = "Female")
+teacher_data$teacher_type <- relevel(teacher_data$teacher_type, ref = "General Teacher")
+teacher_data$full_time <- relevel(teacher_data$full_time, ref = "Full-Time")
+teacher_data$teacher_edu  <- relevel(teacher_data$teacher_edu, ref = "None. No Teacher Education")
+teacher_data$prof_dev  <- relevel(teacher_data$prof_dev, ref = "Participated")
+teacher_data$high_education  <- relevel(teacher_data$high_education, ref = "High School; Some College; Associates Degree")
+teacher_data$init_qual  <- relevel(teacher_data$init_qual, ref = "Training on Other Pedagogical Profession or Other")
+```
+
+## LM Teacher Data
+
+```{r running_lm}
+model_1 <- lm(reading_score ~ age + teaching_exp + gender + teacher_type + full_time + teacher_edu + prof_dev + high_education + init_qual, data = teacher_data)
+summary(model_1)
+# That Worked!
+```
+
+### Variable Information, Categories and Reference Categories
+
+```{r variable_information}
+teacher_table <- data.frame(SN = c(1:12),
+                            Variables = c("school_id","teacher_id","gender","age","teacher_type","full_time","high_education","teaching_exp","teacher_edu","initial_qual","prof_dev","reading_score"),
+                            Short_Description = c("School ID","Teacher ID","A categorical variable noting teachers' Gender","A continous variable showing teachers' age in years","A dichotomous variable showing whether a teacher is a reading/language arts teacher or general teacher","A categorical variable noting whether a teacher works full-time or part-time","A nominal variable showing the highest level of education completed by teachers","A continous variable representing their teaching experience in number of years","A nominal variable showing whether a teacher has completed any teacher education programs and what","A nominal variable representing what was their initial qualification to allow them to teach","A dichotomous variable showing whether a teacher got chance to attend any professional development opportunity in last 12-months of the survey period","A continous variable, an output, showing average school reading scores based on the peformance of 15-year-olds in 2018 PISA reading assessment"),
+                            Rerence_Categories = c("NA","NA","Female","NA","General Teacher","Full-Time","High School; Some College; Associates Degree","NA","None. No Teacher Education","Training on Other Pedagogical Profession or Other","Participated","NA"))
+
+library(kableExtra)
+kbl(teacher_table)%>%
+  kable_classic_2(full_width = F)
+```
+
+## 2. Student and School Characteristics
+
+```{r ss_data}
+ss_data <- read.csv("C:/Users/nghimire/OneDrive - University of Texas at Tyler/Documents/edsurvey_PISA_USA/s_data.csv")
+# Checking the Structure
+#str(ss_data)
+# Changing the Character Vectors to Factors
+ss_data[] <- lapply(ss_data, function(y) if(is.character(y)) as.factor(y) else y)
+# Summary
+#summary(ss_data)
+```
+
+```{r modeling_ss}
+# Collapsing some sub-categories
+## Ethnicity
+ss_data <- ss_data|>
+  dplyr::mutate(student_race = recode(ETHNICITY,
+                          "Other" = "Two or More Race/Other",
+                          "Two or More Race" = "Two or More Race/Other"))
+### Getting Rid of ETHNICITY
+ss_data$ETHNICITY <- NULL
+
+## MISCED
+ss_data <- ss_data|>
+  dplyr::mutate(mom_education = recode(MISCED,
+                          "ISCED 1" = "ISCED 1/None",
+                          "None" = "ISCED 1/None"))
+### Getting Rid of MISCED
+ss_data$MISCED <- NULL
+
+## FISCED
+ss_data <- ss_data|>
+  dplyr::mutate(dad_education = recode(FISCED,
+                          "ISCED 1" = "ISCED 1/None",
+                          "None" = "ISCED 1/None"))
+### Getting Rid of MISCED
+ss_data$FISCED <- NULL
+
+## SCH_LOCA
+ss_data <- ss_data|>
+  dplyr::mutate(school_location = recode(SCH_LOCA,
+                          "rural" = "small_town/rural",
+                          "small_town" = "small_town/rural"))
+### Getting Rid of MISCED
+ss_data$SCH_LOCA <- NULL
+
+# Changing the variable names to lowercase
+ss_data <- ss_data|>
+dplyr::rename(student_gender = GENDER,
+       home_language = LANGN,
+       student_ethnicity = student_race,
+       mom_edu = mom_education,
+       dad_edu = dad_education,
+       mom_cob = COB_MOM,
+       dad_cob = COB_DAD,
+       home_computer = COM_HOM,
+       home_internet = INTERNET, 
+       home_ict = ICTHOME, 
+       school_type = SCH_TYPE,
+       school_location = school_location, 
+       school_frpl_cat = FRPL,
+       school_frpl = SCH_FRPL,
+       school_els = SCH_ELS,
+       school_ese = SCH_DISA,
+       extra_lg_class = EXT_CLAS,
+       reading_score = READ_SCR)|>
+  dplyr::select(student_gender, student_ethnicity, 
+         home_language, mom_cob, dad_cob, 
+         mom_edu, dad_edu, home_computer, 
+         home_internet, home_ict, school_location, 
+         school_type, school_els, school_ese,
+         school_frpl_cat, school_frpl, extra_lg_class,
+         reading_score)
+
+#summary(ss_data)
+```
+
+```{r nominating_reference_categories}
+# Creating Reference Categories
+ss_data$student_gender <-  relevel(ss_data$student_gender, ref = "Female")
+ss_data$student_ethnicity <-  relevel(ss_data$student_ethnicity, ref = "White, not Hispanic")
+ss_data$home_language <-  relevel(ss_data$home_language, ref = "English")
+ss_data$mom_cob <-  relevel(ss_data$mom_cob, ref = "United States")
+ss_data$dad_cob <-  relevel(ss_data$dad_cob, ref = "United States")
+ss_data$mom_edu <-  relevel(ss_data$mom_edu, ref = "ISCED 1/None")
+ss_data$dad_edu <-  relevel(ss_data$dad_edu, ref = "ISCED 1/None")
+ss_data$home_computer <-  relevel(ss_data$home_computer, ref = "No")
+ss_data$home_internet <-  relevel(ss_data$home_internet, ref = "No")
+ss_data$school_location <-  relevel(ss_data$school_location, ref = "small_town/rural")
+ss_data$school_type <-  relevel(ss_data$school_type, ref = "Public")
+ss_data$school_frpl_cat <-  relevel(ss_data$school_frpl_cat, ref = ">75% FRPL students")
+ss_data$extra_lg_class <-  relevel(ss_data$extra_lg_class, ref = "No")
+summary(ss_data)
+str(ss_data)
+```
+
+```{r variable_table_ss}
+ss_table <- data.frame(
+  SN = c(1:18),
+  Variables = c("student_gender", "student_ethnicity", "home_language", "mom_cob", "dad_cob", "mom_edu","dad_edu", 
+                "home_computer", "home_internet", "home_ict", 
+                "school_location", "school_type","school_els", "school_ese", "school_frpl_cat", "school_frpl", "extra_lg_class", "reading_score"),
+  Short_Description = c("A dichomotous variable denoting students' gender", "A categorial variable noting students' reported ethinicity: White, not Hispanic, Asian, Black or African American, Hispanic or Latino, and Two or More Race/Other", "A categorical variable refrencing students' home language: English, Spanish, or Another Language", "A dichotomous variable suggesting whether the test-takers' mother was born in the United States", "A dichotomous variable suggesting whether the test-takers' father was born in the United States", "A categorical variable denoting the highest level of education completed by the test-takers' mother","A categorical variable denoting the highest level of education completed by the test-takers' father", "An indicator of whether the student has an access to home computer", "An indicator of whether the student has an access to home internet", "An indicator of number of information and communication technology (ICT) devices at students' home", "A categorical variable denoting school location: small_town/rural, city, large_city, town", "A dichotomous variable denoting the test-takers' school type: Public or Private", "A school indicator showing percentage of English Learners attending that school","A school indicator showing the total percentage of special need student in that school", "A categorical variable grouping schools by the percentage of Free or Reduced-price Lunch eligible students: >75% FRPL students, 50-74.9% FRPL students, 25-50% FRPL students, 10-24.9% FRPL students, <10% FRPL students, ", "An indicator showing percentage of students eligible for Free or Reduced-priced lunch by school", "An indicator of whether the school provided extra reading/language arts classes to the test-takers: No, Yes", "The outcome variable showing students' reading assessment scores"),
+  Rerence_Categories = c("Female", "White, not Hispanic", "English", "United States", "United States", "ISCED 1/None","ISCED 1/None", 
+                         "No", "No", "NA", 
+                         "small_town/rural", "Public","NA", "NA", ">75% FRPL students", "NA", "No", "NA")
+)
+
+library(kableExtra)
+kbl(ss_table) %>%
+  kable_classic_2(full_width = F)
+```
+
+## B. Student and School Effects on Students' Reading Scores
+
+1.  Stepwise model development plan:
+    -   Start with a basic model including only student background variables and reading score.
+    -   Add home ICT variables to the model.
+    -   Incorporate school background variables into the model.
+    -   Evaluate and modify the model to improve fit and interpretability.
+
+### Writing the Custome Made Function to Abbreviate Long Names
+
+***SS DATA***
+
+```{r abbr_func}
+abbr_func <- function(abbr){
+  x <- as.data.frame(ss_data)%>%
+    dplyr::select(starts_with(abbr))%>%
+    colnames() %>% noquote() %>%
+    paste(collapse = " + ")
+  return(x)
+}
+
+# Variable Name
+student <- abbr_func(abbr = "STD")
+ICT <-  abbr_func(abbr = "ICT")
+school <- abbr_func(abbr = "SCH")
+```
+
+## Regression Models (Combined/Individaul)
+
+### Stage 1. a. Student Characteristics and Reading Scores
+
+```{r student_reading}
+std_model <-'
+student =~ student_gender + student_ethnicity + home_language + mom_cob + dad_cob + mom_edu + dad_edu
+reading_score ~ student
+'
+# Running the Model 
+student_model <- sem(std_model, data = ss_data, 
+              ordered = c("student_gender","student_ethnicity","home_language","mom_cob","dad_cob", 
+              "mom_edu","dad_edu")) 
+
+# Getting Summary of the Model
+summary(student_model, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE)
+
+# Plotting the Model
+#lavaanPlot(model = student_model, coefs = TRUE, sig = .05, stand = TRUE) 
+#lay_student <- get_layout(student_model, layout_algorithm = "layout_on_grid")
+#get_nodes(student_model)
+std_graph <- graph_sem(model = student_model, text_size = 3, fix_coord = TRUE)
+ggsave("std_path.png", std_graph, width = 9.5, height = 6)
+knitr::include_graphics("std_path.png")
+```
+
+### Stage 1. b. Student ICT and Reading Scores
+
+```{r home_ict_reading}
+#names(ss_data)
+ict_data <- ss_data[, c(8:10, 18)]
+ict_model <-'
+ict =~ home_computer + home_internet + home_ict
+reading_score ~ ict
+'
+# Running the Model 
+home_ict_model <- sem(ict_model, data = ict_data, 
+              ordered = c("home_computer","home_internet")) 
+
+# Getting Summary of the Model
+#summary(home_ict_model, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE)
+
+# Plotting the Model
+#lavaanPlot(model = home_ict_model, coefs = TRUE, sig = .05, stand = TRUE) 
+lay_ict <- get_layout(home_ict_model, layout_algorithm = "layout_in_circle")
+graph_sem(model = home_ict_model, layout = lay_ict)
+```
+
+### Stage 1. c. School Characteristics and Reading Scores
+
+```{r school_reading}
+sch_model <-'
+school =~ school_location + school_type + school_frpl_cat + school_els + school_ese + extra_lg_class
+reading_score ~ school
+'
+# Running the Model 
+school_model <- sem(sch_model, data = ss_data, 
+              ordered = c("school_location","school_type","school_frpl_cat","extra_lg_class")) 
+
+# Getting Summary of the Model
+summary(school_model, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE)
+
+# Plotting the Model
+#lavaanPlot(model = school_model, coefs = TRUE, sig = .05, stand = TRUE) 
+
+lay_school <- get_layout(school_model, layout_algorithm = "layout_on_grid")
+graph_sem(model = school_model, layout = lay_school)
+```
+
+### Stage 1. d. Teacher Characteristics and Reading Scores
+
+```{r teacher_reading}
+tech_model <-'
+# Latent Model
+teacher =~ gender + age + teacher_type + full_time + high_education + teaching_exp + teacher_edu + init_qual + prof_dev
+# Regression Model
+reading_score ~ teacher
+'
+# Running the Model 
+teacher_model <- sem(tech_model, data = teacher_data, 
+              ordered = c("gender","teacher_type","full_time","high_education","teacher_edu","init_qual","prof_dev")) 
+
+# Getting Summary of the Model
+summary(teacher_model, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE)
+
+#modificationIndices(teacher_model, sort = TRUE)
+
+# Inspect Correlation
+#semPlot::semPaths(teacher_model, "std", layout = "tree", residual = TRUE, edge.label.cex = 1.5, node.label.cex = 1.5)
+
+# Plotting the Model
+#lavaanPlot(model = teacher_model, coefs = TRUE, sig = .05, stand = TRUE) 
+lay_teacher <- get_layout(teacher_model, layout_algorithm = "layout_on_grid")
+graph_sem(model = teacher_model, layout = lay_teacher)
+```
+
+### Reading Model with Teacher
+
+```{r teach_mod_2}
+read_model <-'
+reading_score ~ gender + age + teacher_type + full_time + high_education + teaching_exp + teacher_edu + init_qual + prof_dev
+# show that dependent variable has variance
+reading_score ~~ reading_score
+# We want the Intercept
+reading_score ~ 1
+'
+# Running the Model 
+reading_model <- sem(read_model, data = teacher_data,
+                     ordered = c("gender","teacher_type","full_time","high_education","teacher_edu","init_qual","prof_dev")) 
+              
+
+# Getting Summary of the Model
+summary(reading_model, standardized = TRUE, rsquare = TRUE)
+#anova(read_model)
+```
+
+### Stage 1. d.i. Teacher Characteristics and Reading Scores Improved Model
+
+```{r teacher_reading_modified}
+tech_mod_model <-'
+# Latent Model
+teacher =~ gender + age + teacher_type + full_time + high_education + teaching_exp + teacher_edu + init_qual + prof_dev
+# Regression Model
+reading_score ~ teacher
+# Correlation
+ gender ~~ teacher_type
+ teacher_edu ~~ init_qual
+ high_education ~~  teacher_edu
+ gender ~~  teacher_edu
+ gender ~~ init_qual
+ #full_time ~~ prof_dev
+ teacher_type ~~ high_education
+ full_time ~~ teacher_edu
+ #teacher_type ~~ init_qual
+ init_qual ~~ prof_dev
+ #full_time ~~ teaching_exp
+ age ~~ teacher_edu
+ age ~~ high_education
+ high_education ~~   teaching_exp
+ gender ~~ high_education
+ full_time ~~ high_education
+ full_time ~~ teaching_exp
+ age ~~ full_time
+ gender ~~  full_time
+ age ~~ teacher_type
+ full_time ~~ init_qual
+'
+# Running the Model 
+teacher_model_modified <- sem(tech_mod_model, data = teacher_data, 
+              ordered = c("gender","teacher_type","full_time","high_education","teacher_edu","init_qual","prof_dev")) 
+
+# Getting Summary of the Model
+summary(teacher_model_modified, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE)
+
+modificationIndices(teacher_model_modified, sort = TRUE)
+
+# Plotting the Model
+#lavaanPlot(model = teacher_model, coefs = TRUE, sig = .05, stand = TRUE) 
+lay_teacher <- get_layout(teacher_model_modified, layout_algorithm = "layout_on_grid")
+graph_sem(model = teacher_model_modified, layout = lay_teacher)
+```
+
+### New Path Model
+
+```{r new_path_model}
+semPlot::semPaths(teacher_model_modified, what = "path", whatLabels = "est", layout = "tree2", intercepts = TRUE, residuals = TRUE, thresholds = TRUE, intStyle = "multi", rotation = 4, curvature = 2, nCharNodes = 4, nCharEdges = 3, sizeMan = 11, sizeLat = 12,  sizeInt = 2, sizeMan2=1.9, sizeLat2=1, sizeInt2=1.8, shapeMan="rectangle", shapeLat="ellipse", shapeInt = "triangle", ask=FALSE, combineGroups = FALSE, gui = FALSE, allVars = FALSE, reorder = TRUE, structural = FALSE, ThreshAtSide = FALSE, thresholdSize = 1.0, fixedStyle = 2, freeStyle = 1, as.expression = character(1), optimizeLatRes = FALSE, inheritColor = TRUE, 
+  pastel = FALSE, rainbowStart = 0, springLevels = FALSE, nDigits = 2, exoCov = TRUE, centerLevels = TRUE, panelGroups = FALSE, layoutSplit = FALSE, measurementLayout = "tree", subRes = 4, modelOpts = list(mplusStd = "std"), curveAdjacent = '<->', edge.label.cex = 0.8,  cardinal = "none", equalizeManifests = FALSE, covAtResiduals = TRUE, optimPoints = 3:8 * (pi/3))
+```
+
+### Modified Path Model Variable Name Changed_Teacher
+
+```{r modified_path}
+mod_teacher <- data.frame(teacher_data[ ,-c(1:2)])
+colnames(mod_teacher) <- c('sex', 'age', 'tpe', 'ftm', 'exp', 'ted', 'pd', 'scr', 'hed', 'iql')
+names(mod_teacher)
+
+mod_model <-'
+# Latent Model
+tch =~ sex + age + tpe + ftm + hed + exp + ted + iql + pd
+# Regression Model
+scr ~ tch
+# Correlation
+ sex ~~ tpe
+ ted ~~ iql
+ hed ~~  ted
+ sex ~~  ted
+ sex ~~ iql
+ #ftm ~~ pd
+ tpe ~~ hed
+ ftm ~~ ted
+ #ted ~~ iql
+ iql ~~ pd
+ #ftm ~~ exp
+ age ~~ ted
+ age ~~ hed
+ hed ~~   exp
+ sex ~~ hed
+ ftm ~~ hed
+ ftm ~~ exp
+ age ~~ ftm
+ sex ~~  ftm
+ age ~~ tpe
+ ftm ~~ iql
+'
+# Running the Model 
+teac_mod_modi <- sem(mod_model, data = mod_teacher, 
+              ordered = c("sex","tpe","ftm","hed","ted","iql","pd")) 
+
+# Getting Summary of the Model
+
+summary(teac_mod_modi, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE)
+semPlot::semPaths(teac_mod_modi, 
+                  what = "path", 
+                  whatLabels = "est", 
+                  layout = "tree2", 
+                  intercepts = TRUE, 
+                  residuals = TRUE, 
+                  thresholds = TRUE, 
+                  intStyle = "multi", 
+                  rotation = 4, 
+                  curvature = 3, 
+                  nCharNodes = 5, 
+                  nCharEdges = 4, 
+                  sizeMan = 16, 
+                  sizeLat = 18, 
+                  sizeInt = 6, 
+                  sizeMan2 = 2, 
+                  sizeLat2 = 1.5, 
+                  sizeInt2 = 2, 
+                  shapeMan = "square", 
+                  shapeLat = "ellipse", 
+                  shapeInt = "triangle", 
+                  ask = FALSE, 
+                  combineGroups = FALSE, 
+                  gui = FALSE, 
+                  allVars = FALSE, 
+                  reorder = TRUE, 
+                  structural = FALSE, 
+                  ThreshAtSide = FALSE, 
+                  thresholdSize = 1.5, 
+                  fixedStyle = 2, 
+                  freeStyle = 1, 
+                  as.expression = character(1), 
+                  optimizeLatRes = FALSE, 
+                  inheritColor = TRUE, 
+                  pastel = FALSE, 
+                  rainbowStart = 120, 
+                  springLevels = FALSE, 
+                  nDigits = 2, 
+                  exoCov = TRUE, 
+                  centerLevels = TRUE, 
+                  panelGroups = FALSE, 
+                  layoutSplit = FALSE, 
+                  measurementLayout = "tree2", 
+                  subRes = 4, 
+                  modelOpts = list(mplusStd = "std"), 
+                  curveAdjacent = "<->", 
+                  edge.label.cex = 0.9, 
+                  cardinal = "none", 
+                  equalizeManifests = FALSE, 
+                  covAtResiduals = TRUE, 
+                  optimPoints = 3:8 * (pi/3), 
+                  graph.env = list(ylim = c(-7,7), 
+                                    xlim = c(-7,7)))
+
+```
+
+### e. Student Charateristics, Home ICT and Reading Scores
+
+```{r st_ict_read}
+st_ict <- '
+reading_score ~ student_gender + student_ethnicity + home_language + mom_cob + dad_cob + mom_edu + dad_edu + home_computer + home_internet + home_ict
+'
+# Running the Model
+student_ict_model <- sem(st_ict, data = ss_data, 
+              ordered = c("student_gender","student_ethnicity","home_language","mom_cob","dad_cob", "mom_edu","dad_edu","home_computer","home_internet")) 
+
+# Getting the Summary Statistics
+summary(student_ict_model, standardized = TRUE, rsquare = TRUE) 
+
+# Plotting the Model
+#graph_sem(model = student_ict_model)
+```
+
+### f. Student Characteristics, Home ICT, School Characteristics and Reading Scores
+
+```{r st_ict_sch}
+st_ict_sch <- '
+reading_score ~ student_gender + student_ethnicity + home_language + mom_cob + dad_cob + mom_edu + dad_edu + 
+                home_computer + home_internet + home_ict + 
+                school_location + school_type + school_els + school_ese + school_frpl_cat + extra_lg_class
+'
+# Running the Model
+student_ict_school_model <- sem(st_ict_sch, data = ss_data, 
+              ordered = c("student_gender","student_ethnicity","home_language","mom_cob","dad_cob", 
+              "mom_edu","dad_edu","home_computer","home_internet", "school_location","school_type", "school_frpl_cat", "extra_lg_class")) 
+
+# Getting the Summary Statistics
+summary(student_ict_school_model, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE) 
+
+# Plotting the Model
+#graph_sem(model = student_ict_model)
+```
+
+## Latent Variable Models
+
+### a. First Model
+
+```{r first_latent_model}
+first_latent_mod <- ' 
+# Latent Variables 
+student =~ student_ethnicity + home_language + mom_cob + dad_cob + mom_edu + dad_edu + student_gender
+ICT =~ home_computer + home_internet + home_ict 
+school =~ school_location + school_type + school_els + school_ese + school_frpl_cat + extra_lg_class
+
+# Regression Paths
+student ~ school 
+student ~ ICT 
+ICT ~ school 
+reading_score ~ student + ICT + school
+' 
+
+# Running the Model
+first_model <- sem(first_latent_mod, data = ss_data, 
+              ordered = c("student_gender","student_ethnicity","home_language","mom_cob","dad_cob", 
+              "mom_edu","dad_edu","home_computer","home_internet","school_location","school_type", "school_frpl_cat", "extra_lg_class")) 
+
+# Getting the Summary Statistics
+summary(first_model, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE) 
+
+# Model Modifications
+#modificationIndices(first_model, sort = TRUE)
+
+# Plot
+lavaanPlot(model = first_model, coefs = TRUE, sig = .05, stand = TRUE, stars = "latent")
+```
+
+### a. Second Model
+
+```{r second_latent_model}
+second_latent_mod <- ' 
+# Latent Variables 
+ICT =~ home_computer + home_internet + home_ict
+student =~ student_ethnicity + home_language + mom_cob + dad_cob + mom_edu + dad_edu + student_gender  
+school =~ school_location + school_type + school_els + school_ese + school_frpl_cat + extra_lg_class    
+
+# Regression Paths
+student ~ school 
+student ~ ICT 
+ICT ~ school 
+reading_score ~ student + ICT + school
+
+# Covariance
+school ~~ 0*ICT
+student_ethnicity ~~ home_computer
+student_ethnicity ~~ school_els
+mom_cob ~~ dad_cob
+mom_edu ~~ dad_edu
+mom_edu ~~ home_ict
+mom_cob ~~ mom_edu
+dad_cob ~~ dad_edu
+mom_cob ~~ dad_edu
+dad_cob ~~ mom_edu
+dad_edu ~~ home_ict
+dad_edu ~~ home_computer
+mom_edu ~~ home_computer
+mom_cob ~~ home_computer
+dad_cob ~~ school_location
+school_location ~~ extra_lg_class
+school_location ~~ school_ese
+school_type ~~ school_ese
+school_type ~~ school_frpl_cat
+school_type ~~ extra_lg_class
+school_ese ~~ extra_lg_class
+home_internet ~~ home_ict
+school_frpl_cat ~~ extra_lg_class
+school_els ~~ school_frpl_cat
+mom_cob ~~ school_location
+home_computer ~~ school_frpl_cat
+student_gender ~~ home_ict
+home_computer ~~ school_location
+home_language ~~ home_ict
+home_ict ~~ school_type
+student_ethnicity ~~ school_frpl_cat
+student_ethnicity ~~  home_ict
+dad_cob ~~  school_ese
+dad_cob ~~  home_ict
+#home_computer ~~ home_internet
+' 
+
+# Running the Model
+second_model <- sem(second_latent_mod, data = ss_data, 
+              ordered = c("student_gender","student_ethnicity","home_language","mom_cob","dad_cob", 
+              "mom_edu","dad_edu","home_computer","home_internet","school_location","school_type", "school_frpl_cat", "extra_lg_class")) 
+
+# Getting the Summary Statistics
+summary(second_model, standardized = TRUE, rsquare = TRUE, fit.measures = TRUE) 
+
+# Model Modifications
+#modificationIndices(second_model, sort = TRUE)
+
+# Plot
+lavaanPlot(model = second_model, coefs = TRUE, sig = .05, stand = TRUE, stars = "latent")
+```
+
+### Correlatiom Matrix of Second Model
+
+```{r reliability_second_model}
+#residuals(second_model, type = "cor")
+cov_reproduced <- fitted(second_model)$cov
+cor_reproduced <- cov2cor(cov_reproduced)
+cor_reproduced
+```
+
+## Changing Variables in Numeric to Draw Corrlation Estimates
+
+```{r saving_data_files}
+dim(ss_data)
+
+dim(teacher_data)
+
+
+## Changing non-numeric variables to numeric in SS_data
+ss_numeric <- lapply(ss_data, function(x) if(is.factor(x)) as.numeric(x) else x)
+class(ss_numeric)
+ss_numeric <- as.data.frame(ss_numeric)
+str(ss_numeric)
+#write.csv(ss_numeric, "ss_warp_data.csv", row.names = FALSE)
+
+## Changing non-numeric variables to numeric in teacher_data
+teacher_numeric <- lapply(teacher_data, function(y) if(is.factor(y)) as.numeric(y) else y)
+class(teacher_numeric)
+teacher_numeric <- as.data.frame(teacher_numeric)
+teacher_numeric <- teacher_numeric[, 3:12]
+str(teacher_numeric)
+#write.csv(teacher_numeric, "teacher_warp_data.csv", row.names = FALSE)
+```
+
+### Correlation Among Variables in SS Data
+
+```{r ss_correlation}
+library(Hmisc)
+corr_ss <- rcorr(as.matrix(ss_numeric), type="pearson")
+cor_ss_r <- as.data.frame(corr_ss$r)
+ss_r <- round(cor_ss_r,3)
+#write.csv(ss_r, "ss_correlation.csv", row.names = TRUE)
+corr_ss
+```
+
+### Correlation Among Variables in teacher Data
+
+```{r teacher_correlation}
+library(Hmisc)
+
+# Compute pairwise correlation coefficients and their p-values
+corr_teach <- rcorr(as.matrix(teacher_numeric), type="pearson")
+cor_teach_r <- as.data.frame(corr_teach$r)
+teach_r <- round(cor_teach_r,3)
+#write.csv(teach_r, "teacher_correlation.csv", row.names = TRUE)
+corr_teach
+```
+
+## Summary of Teacher Data
+
+```{r}
+summary(teacher_data)
+```
+
+## Summary of School/Student Data
+
+```{r}
+summary(ss_data)
+```
